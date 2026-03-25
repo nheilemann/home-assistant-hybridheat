@@ -72,6 +72,8 @@ Create **one config entry per room** (you may reuse the same global sensor entit
 
 Config-flow validation errors often return **HTTP 400** in the browser **before** Python runs, so you may see nothing under `custom_components.hybrid_heat` until the flow reaches our code.
 
+- In the browser **Network** tab, open the failing `flow/{flow_id}` request: a valid HA response is usually **JSON** `{"errors": { ... }}` (field-level hints). If you only see **plain text** and very few bytes, a **proxy (e.g. Cloudflare)** or the client may be altering the response—try from the local HA URL or check the full log on the server.
+
 - **Settings → System → Logs** (or **full log** download). Filter or search for `hybrid_heat`.
 - To force more detail, add to `configuration.yaml`:
 

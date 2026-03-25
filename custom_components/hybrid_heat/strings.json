@@ -37,11 +37,14 @@
     },
     "error": {
       "empty_room_name": "Bitte einen Raumnamen angeben.",
-      "forecast_required": "Mindestens ein Forecast-/PV-Sensor ist erforderlich."
+      "forecast_required": "Mindestens ein Forecast-/PV-Sensor ist erforderlich.",
+      "same_climate_entities": "Heizungs- und Klima-Climate müssen zwei verschiedene Entities sein.",
+      "unknown": "Unerwarteter Fehler — Details stehen im Home-Assistant-Log unter „custom_components.hybrid_heat“."
     },
     "abort": {
       "already_configured": "Dieser Raum ist bereits konfiguriert.",
-      "options_not_implemented": "Optionen sind in dieser Version noch nicht implementiert (TODO)."
+      "options_not_implemented": "Optionen sind in dieser Version noch nicht implementiert (TODO).",
+      "unknown": "Konfiguration abgebrochen — siehe Protokoll (Logger: custom_components.hybrid_heat)."
     }
   }
 }

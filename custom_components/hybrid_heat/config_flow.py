@@ -43,6 +43,38 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _coerce_entity_id(value: Any) -> str:
+    """Normalize entity picker payload: HA frontend may send a string or {entity_id: ...}."""
+    if isinstance(value, dict):
+        for key in ("entity_id", "entityId", "id"):
+            inner = value.get(key)
+            if isinstance(inner, str) and inner.strip():
+                return inner.strip()
+        raise vol.Invalid("Expected entity_id string or object with entity_id")
+    if isinstance(value, str):
+        return value.strip()
+    raise vol.Invalid("Invalid entity value")
+
+
+def _coerce_entity_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        raise vol.Invalid("Expected a list of entities")
+    return [_coerce_entity_id(v) for v in value]
+
+
+def _coerce_room_name(value: Any) -> str:
+    """Text field may be a string or a small object from newer frontends."""
+    if isinstance(value, dict):
+        for key in ("value", "text", "room_name", "name"):
+            inner = value.get(key)
+            if inner is not None and str(inner).strip():
+                return str(inner).strip()
+        return ""
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
 def _climate_selector(multiple: bool = False) -> selector.EntitySelector:
     return selector.EntitySelector(
         selector.EntitySelectorConfig(domain="climate", multiple=multiple)
@@ -53,6 +85,29 @@ def _sensor_selector(multiple: bool = False) -> selector.EntitySelector:
     return selector.EntitySelector(
         selector.EntitySelectorConfig(domain="sensor", multiple=multiple)
     )
+
+
+def _optional_single_sensor() -> vol.Any:
+    """Optional entity picker: HA UI often sends '' or null; EntitySelector rejects those."""
+    return vol.Any(
+        vol.In((None, "")),
+        vol.All(_coerce_entity_id, _sensor_selector()),
+    )
+
+
+def _required_climate_entity():
+    """Required climate entity with object-or-string coercion."""
+    return vol.All(_coerce_entity_id, _climate_selector())
+
+
+def _required_sensor_entity():
+    """Required sensor entity with object-or-string coercion."""
+    return vol.All(_coerce_entity_id, _sensor_selector())
+
+
+def _required_forecast_entities():
+    """Forecast entity list (may be list of objects from the UI)."""
+    return vol.All(_coerce_entity_list, _sensor_selector(multiple=True))
 
 
 class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[misc]
@@ -70,24 +125,44 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            room_name = user_input[CONF_ROOM_NAME].strip()
-            if not room_name:
-                errors["base"] = "empty_room_name"
-            else:
-                unique_id = f"{DOMAIN}_{room_name.lower().replace(' ', '_')}"
-                await self.async_set_unique_id(unique_id)
-                self._abort_if_unique_id_configured()
-                self._room_data = user_input
-                return await self.async_step_globals()
+            try:
+                room_name = str(user_input.get(CONF_ROOM_NAME, "")).strip()
+                heat_ent = user_input.get(CONF_HEATING_CLIMATE)
+                ac_ent = user_input.get(CONF_AC_CLIMATE)
+                if not room_name:
+                    errors["base"] = "empty_room_name"
+                elif heat_ent == ac_ent:
+                    errors["base"] = "same_climate_entities"
+                else:
+                    unique_id = f"{DOMAIN}_{room_name.lower().replace(' ', '_')}"
+                    await self.async_set_unique_id(unique_id)
+                    self._abort_if_unique_id_configured()
+                    self._room_data = user_input
+                    return await self.async_step_globals()
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("HybridHeat: async_step_user failed")
+                errors["base"] = "unknown"
 
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_ROOM_NAME): selector.TextSelector(),
-                vol.Required(CONF_HEATING_CLIMATE): _climate_selector(),
-                vol.Required(CONF_AC_CLIMATE): _climate_selector(),
-                vol.Required(CONF_ROOM_TEMP_SENSOR): _sensor_selector(),
-            }
-        )
+        try:
+            schema = vol.Schema(
+                {
+                    vol.Required(CONF_ROOM_NAME): vol.All(
+                        _coerce_room_name,
+                        selector.TextSelector(
+                            selector.TextSelectorConfig(
+                                type=selector.TextSelectorType.TEXT,
+                            )
+                        ),
+                    ),
+                    vol.Required(CONF_HEATING_CLIMATE): _required_climate_entity(),
+                    vol.Required(CONF_AC_CLIMATE): _required_climate_entity(),
+                    vol.Required(CONF_ROOM_TEMP_SENSOR): _required_sensor_entity(),
+                },
+                extra=vol.REMOVE_EXTRA,
+            )
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("HybridHeat: building user-step schema failed")
+            return self.async_abort(reason="unknown")
 
         return self.async_show_form(
             step_id="user",
@@ -102,24 +177,29 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            data = {**self._room_data, **user_input}
             try:
-                normalized = _normalize_entry(data)
-            except ValueError:
-                errors["base"] = "forecast_required"
-            else:
-                return self.async_create_entry(
-                    title=normalized[CONF_ROOM_NAME], data=normalized
-                )
+                data = {**self._room_data, **user_input}
+                try:
+                    normalized = _normalize_entry(data)
+                except ValueError:
+                    errors["base"] = "forecast_required"
+                else:
+                    return self.async_create_entry(
+                        title=normalized[CONF_ROOM_NAME], data=normalized
+                    )
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("HybridHeat: async_step_globals submit failed")
+                errors["base"] = "unknown"
 
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_OUTDOOR_TEMP_SENSOR): _sensor_selector(),
-                vol.Required(CONF_ELECTRICITY_PRICE_SENSOR): _sensor_selector(),
-                vol.Required(CONF_GAS_PRICE_SENSOR): _sensor_selector(),
-                vol.Required(CONF_FEED_IN_SENSOR): _sensor_selector(),
-                vol.Required(CONF_FORECAST_SOLAR_ENTITIES): _sensor_selector(multiple=True),
-                vol.Optional(CONF_BATTERY_SOC_SENSOR): _sensor_selector(),
+        try:
+            schema = vol.Schema(
+                {
+                vol.Required(CONF_OUTDOOR_TEMP_SENSOR): _required_sensor_entity(),
+                vol.Required(CONF_ELECTRICITY_PRICE_SENSOR): _required_sensor_entity(),
+                vol.Required(CONF_GAS_PRICE_SENSOR): _required_sensor_entity(),
+                vol.Required(CONF_FEED_IN_SENSOR): _required_sensor_entity(),
+                vol.Required(CONF_FORECAST_SOLAR_ENTITIES): _required_forecast_entities(),
+                vol.Optional(CONF_BATTERY_SOC_SENSOR): _optional_single_sensor(),
                 vol.Optional(
                     CONF_BATTERY_CAPACITY_KWH,
                     default=0,
@@ -156,7 +236,7 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                         unit_of_measurement="%",
                     )
                 ),
-                vol.Optional(CONF_HOUSE_POWER_ENTITY): _sensor_selector(),
+                vol.Optional(CONF_HOUSE_POWER_ENTITY): _optional_single_sensor(),
                 vol.Optional(
                     CONF_BASE_LOAD_W,
                     default=400,
@@ -228,15 +308,24 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                         unit_of_measurement="s",
                     )
                 ),
-                vol.Optional(CONF_COP_POINTS): selector.TextSelector(
-                    selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT,
-                        multiline=True,
-                        placeholder="-5:2.2, 0:2.8, 5:3.4, 10:4.0",
-                    )
+                vol.Optional(CONF_COP_POINTS): vol.Any(
+                    vol.In((None, "")),
+                    vol.All(
+                        _coerce_room_name,
+                        selector.TextSelector(
+                            selector.TextSelectorConfig(
+                                type=selector.TextSelectorType.TEXT,
+                                multiline=True,
+                            )
+                        ),
+                    ),
                 ),
-            }
-        )
+                },
+                extra=vol.REMOVE_EXTRA,
+            )
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("HybridHeat: building globals schema failed")
+            return self.async_abort(reason="unknown")
 
         return self.async_show_form(
             step_id="globals",
@@ -295,6 +384,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
     """Placeholder options flow — extend in a follow-up for shared global defaults."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        super().__init__()
         self.config_entry = config_entry
 
     async def async_step_init(

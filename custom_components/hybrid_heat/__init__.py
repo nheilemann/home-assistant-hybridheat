@@ -125,6 +125,10 @@ def build_global_config(entry: ConfigEntry) -> GlobalSensorConfig:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up HybridHeat from a config entry."""
+    _LOGGER.info(
+        "HybridHeat: setting up config entry for room %s",
+        entry.data.get(CONF_ROOM_NAME, entry.entry_id),
+    )
     room_cfg = build_room_config(entry)
     global_cfg = build_global_config(entry)
     coordinator = HybridHeatCoordinator(hass, entry, room_cfg, global_cfg)
