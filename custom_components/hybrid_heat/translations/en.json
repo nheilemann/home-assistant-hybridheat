@@ -1,0 +1,50 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HybridHeat – Room",
+        "description": "One entry is one room with a single virtual climate entity.",
+        "data": {
+          "room_name": "Room name",
+          "heating_climate_entity_id": "Heating climate (e.g. floor / gas)",
+          "ac_climate_entity_id": "Heat-pump / AC climate (heat mode)",
+          "room_temp_sensor_entity_id": "Room temperature sensor"
+        }
+      },
+      "globals": {
+        "title": "Global energy & PV inputs",
+        "description": "Prices, outdoor temperature, and Forecast.Solar (or other PV forecast sensors). Battery and house load are optional.",
+        "data": {
+          "outdoor_temp_sensor_entity_id": "Outdoor temperature sensor",
+          "electricity_price_sensor_entity_id": "Grid electricity price sensor",
+          "gas_price_sensor_entity_id": "Gas price sensor",
+          "feed_in_sensor_entity_id": "Feed-in tariff sensor",
+          "forecast_solar_entity_ids": "PV forecast sensors (one or more)",
+          "battery_soc_sensor_entity_id": "Battery state of charge (optional)",
+          "battery_capacity_kwh": "Usable battery capacity kWh (0 = none)",
+          "battery_min_soc_pct": "Lower SoC bound for heuristic (%)",
+          "battery_max_soc_pct": "Upper SoC bound for heuristic (%)",
+          "house_power_entity_id": "House power (optional)",
+          "base_load_w": "Base load in W (if no house power sensor)",
+          "heating_efficiency": "Heating efficiency (gas → useful heat), 0–1",
+          "hysteresis": "Hysteresis band width (°C)",
+          "min_run_heating_seconds": "Minimum run time heating (s)",
+          "min_run_ac_seconds": "Minimum run time AC (s)",
+          "min_idle_after_switch_seconds": "Minimum idle after source change (s)",
+          "cop_points": "Optional COP points, format: -5:2.2, 0:2.8, …"
+        }
+      }
+    },
+    "error": {
+      "empty_room_name": "Please enter a room name.",
+      "forecast_required": "Select at least one forecast / PV sensor.",
+      "same_climate_entities": "Heating and AC must be two different climate entities.",
+      "unknown": "Unexpected error — check logs for custom_components.hybrid_heat."
+    },
+    "abort": {
+      "already_configured": "This room is already configured.",
+      "options_not_implemented": "Options flow is not implemented yet (TODO).",
+      "unknown": "Configuration aborted — see log (logger: custom_components.hybrid_heat)."
+    }
+  }
+}

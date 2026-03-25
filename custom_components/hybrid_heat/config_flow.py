@@ -102,8 +102,12 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._abort_if_unique_id_configured()
                     self._room_data = user_input
                     return await self.async_step_globals()
-            except Exception:  # noqa: BLE001
-                _LOGGER.exception("HybridHeat: async_step_user failed")
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.error(
+                    "HybridHeat: async_step_user failed: %s",
+                    err,
+                    exc_info=True,
+                )
                 errors["base"] = "unknown"
 
         try:
@@ -147,8 +151,12 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     return self.async_create_entry(
                         title=normalized[CONF_ROOM_NAME], data=normalized
                     )
-            except Exception:  # noqa: BLE001
-                _LOGGER.exception("HybridHeat: async_step_globals submit failed")
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.error(
+                    "HybridHeat: async_step_globals submit failed: %s",
+                    err,
+                    exc_info=True,
+                )
                 errors["base"] = "unknown"
 
         try:

@@ -76,6 +76,8 @@ Config-flow validation errors often return **HTTP 400** in the browser **before*
 
 - Config flow `data_schema` values must be serializable for the UI (selectors, standard `vol` validators). **Custom Python functions inside `vol.All` break** `voluptuous_serialize` and produce **500** (“Unable to convert schema”).
 
+- **Translations:** The UI reads labels from `custom_components/hybrid_heat/translations/{lang}.json` (e.g. `en.json`, `de.json`). `strings.json` alone is often not enough. After updating files, do a **full Home Assistant restart** (not only “reload integration”). If labels stay raw, hard-refresh the browser or clear the frontend cache.
+
 - **Settings → System → Logs** (or **full log** download). Filter or search for `hybrid_heat`.
 - To force more detail, add to `configuration.yaml`:
 
