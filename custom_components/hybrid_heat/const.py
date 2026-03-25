@@ -12,6 +12,10 @@ CONF_HEATING_CLIMATE: Final = "heating_climate_entity_id"
 CONF_AC_CLIMATE: Final = "ac_climate_entity_id"
 CONF_ROOM_TEMP_SENSOR: Final = "room_temp_sensor_entity_id"
 CONF_OUTDOOR_TEMP_SENSOR: Final = "outdoor_temp_sensor_entity_id"
+CONF_ELECTRICITY_PRICE_PER_KWH: Final = "electricity_price_per_kwh"
+CONF_GAS_PRICE_PER_KWH: Final = "gas_price_per_kwh"
+CONF_FEED_IN_PRICE_PER_KWH: Final = "feed_in_price_per_kwh"
+# Legacy config entries (sensor entity IDs — still supported in coordinator)
 CONF_ELECTRICITY_PRICE_SENSOR: Final = "electricity_price_sensor_entity_id"
 CONF_GAS_PRICE_SENSOR: Final = "gas_price_sensor_entity_id"
 CONF_FEED_IN_SENSOR: Final = "feed_in_sensor_entity_id"
@@ -36,6 +40,9 @@ DEFAULT_MIN_RUN_HEATING: Final = 600  # 10 min
 DEFAULT_MIN_RUN_AC: Final = 600
 DEFAULT_MIN_IDLE: Final = 300  # 5 min after source change before reconsidering opposite source
 DEFAULT_UPDATE_INTERVAL: Final = 60  # seconds
+DEFAULT_ELECTRICITY_PRICE_PER_KWH: Final = 0.35
+DEFAULT_GAS_PRICE_PER_KWH: Final = 0.12
+DEFAULT_FEED_IN_PRICE_PER_KWH: Final = 0.08
 
 # COP support points: outdoor_temp_c -> COP (linear interpolation between)
 DEFAULT_COP_POINTS: Final[tuple[tuple[float, float], ...]] = (

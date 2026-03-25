@@ -13,12 +13,12 @@
       },
       "globals": {
         "title": "Globale Energie- und PV-Eingänge",
-        "description": "Preise, Außentemperatur und Forecast.Solar. Batterie-Kapazität/SoC-Grenzen optional (0 kWh = keine Batterie). Hauslast: Grundlast in W; SoC-Sensor und Hausleistungs-Entity später per Options-Flow (TODO).",
+        "description": "Netz-, Gas- und Einspeisepreis fest als €/kWh; Außentemperatur und Forecast.Solar als Sensoren. Batterie optional (0 kWh = keine). Grundlast in W; SoC-/Hausleistungs-Entity später Options-Flow (TODO).",
         "data": {
           "outdoor_temp_sensor_entity_id": "Außentemperatur-Sensor",
-          "electricity_price_sensor_entity_id": "Netz-Strompreis-Sensor",
-          "gas_price_sensor_entity_id": "Gaspreis-Sensor",
-          "feed_in_sensor_entity_id": "Einspeisevergütungs-Sensor",
+          "electricity_price_per_kwh": "Netz-Strompreis (€/kWh)",
+          "gas_price_per_kwh": "Gaspreis (€/kWh, Brennstoff)",
+          "feed_in_price_per_kwh": "Einspeisevergütung (€/kWh)",
           "forecast_solar_entity_ids": "Forecast-/PV-Leistung (ein oder mehrere Sensoren)",
           "battery_capacity_kwh": "Batterie nutzbare Kapazität kWh (0 = keine)",
           "battery_min_soc_pct": "Untere SoC-Grenze für Heuristik (%)",

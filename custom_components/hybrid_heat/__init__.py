@@ -16,9 +16,12 @@ from .const import (
     CONF_BATTERY_MIN_SOC,
     CONF_BATTERY_SOC_SENSOR,
     CONF_COP_POINTS,
+    CONF_ELECTRICITY_PRICE_PER_KWH,
     CONF_ELECTRICITY_PRICE_SENSOR,
+    CONF_FEED_IN_PRICE_PER_KWH,
     CONF_FEED_IN_SENSOR,
     CONF_FORECAST_SOLAR_ENTITIES,
+    CONF_GAS_PRICE_PER_KWH,
     CONF_GAS_PRICE_SENSOR,
     CONF_HEATING_CLIMATE,
     CONF_HEATING_EFFICIENCY,
@@ -108,12 +111,25 @@ def build_global_config(entry: ConfigEntry) -> GlobalSensorConfig:
     has_battery = cap_raw is not None and float(cap_raw) > 0
     base = d.get(CONF_BASE_LOAD_W)
 
+    el_p = d.get(CONF_ELECTRICITY_PRICE_PER_KWH)
+    gas_p = d.get(CONF_GAS_PRICE_PER_KWH)
+    fi_p = d.get(CONF_FEED_IN_PRICE_PER_KWH)
+
     return GlobalSensorConfig(
         outdoor_temp_sensor_entity_id=d[CONF_OUTDOOR_TEMP_SENSOR],
-        electricity_price_sensor_entity_id=d[CONF_ELECTRICITY_PRICE_SENSOR],
-        gas_price_sensor_entity_id=d[CONF_GAS_PRICE_SENSOR],
-        feed_in_sensor_entity_id=d[CONF_FEED_IN_SENSOR],
         forecast_solar_entity_ids=tuple(str(x) for x in fs),
+        electricity_price_per_kwh=float(el_p)
+        if el_p is not None
+        else None,
+        gas_price_per_kwh=float(gas_p) if gas_p is not None else None,
+        feed_in_price_per_kwh=float(fi_p) if fi_p is not None else None,
+        electricity_price_sensor_entity_id=d.get(CONF_ELECTRICITY_PRICE_SENSOR)
+        if el_p is None
+        else None,
+        gas_price_sensor_entity_id=d.get(CONF_GAS_PRICE_SENSOR)
+        if gas_p is None
+        else None,
+        feed_in_sensor_entity_id=d.get(CONF_FEED_IN_SENSOR) if fi_p is None else None,
         battery_soc_sensor_entity_id=d.get(CONF_BATTERY_SOC_SENSOR) if has_battery else None,
         battery_capacity_kwh=float(cap_raw) if has_battery else None,
         battery_min_soc_pct=float(d.get(CONF_BATTERY_MIN_SOC, 15.0)) if has_battery else None,

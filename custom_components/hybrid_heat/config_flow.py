@@ -18,9 +18,12 @@ from .const import (
     CONF_BATTERY_MIN_SOC,
     CONF_BATTERY_SOC_SENSOR,
     CONF_COP_POINTS,
+    CONF_ELECTRICITY_PRICE_PER_KWH,
     CONF_ELECTRICITY_PRICE_SENSOR,
+    CONF_FEED_IN_PRICE_PER_KWH,
     CONF_FEED_IN_SENSOR,
     CONF_FORECAST_SOLAR_ENTITIES,
+    CONF_GAS_PRICE_PER_KWH,
     CONF_GAS_PRICE_SENSOR,
     CONF_HEATING_CLIMATE,
     CONF_HEATING_EFFICIENCY,
@@ -32,6 +35,9 @@ from .const import (
     CONF_OUTDOOR_TEMP_SENSOR,
     CONF_ROOM_NAME,
     CONF_ROOM_TEMP_SENSOR,
+    DEFAULT_ELECTRICITY_PRICE_PER_KWH,
+    DEFAULT_FEED_IN_PRICE_PER_KWH,
+    DEFAULT_GAS_PRICE_PER_KWH,
     DEFAULT_HEATING_EFFICIENCY,
     DEFAULT_HYSTERESIS,
     DEFAULT_MIN_IDLE,
@@ -145,9 +151,42 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             schema = vol.Schema(
                 {
                     vol.Required(CONF_OUTDOOR_TEMP_SENSOR): _sensor_selector(),
-                    vol.Required(CONF_ELECTRICITY_PRICE_SENSOR): _sensor_selector(),
-                    vol.Required(CONF_GAS_PRICE_SENSOR): _sensor_selector(),
-                    vol.Required(CONF_FEED_IN_SENSOR): _sensor_selector(),
+                    vol.Required(
+                        CONF_ELECTRICITY_PRICE_PER_KWH,
+                        default=DEFAULT_ELECTRICITY_PRICE_PER_KWH,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            mode=selector.NumberSelectorMode.BOX,
+                            min=0,
+                            max=5,
+                            step=0.001,
+                            unit_of_measurement="€/kWh",
+                        )
+                    ),
+                    vol.Required(
+                        CONF_GAS_PRICE_PER_KWH,
+                        default=DEFAULT_GAS_PRICE_PER_KWH,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            mode=selector.NumberSelectorMode.BOX,
+                            min=0,
+                            max=5,
+                            step=0.001,
+                            unit_of_measurement="€/kWh",
+                        )
+                    ),
+                    vol.Required(
+                        CONF_FEED_IN_PRICE_PER_KWH,
+                        default=DEFAULT_FEED_IN_PRICE_PER_KWH,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            mode=selector.NumberSelectorMode.BOX,
+                            min=0,
+                            max=5,
+                            step=0.001,
+                            unit_of_measurement="€/kWh",
+                        )
+                    ),
                     vol.Required(CONF_FORECAST_SOLAR_ENTITIES): _sensor_selector(
                         multiple=True
                     ),
@@ -289,6 +328,21 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
 def _normalize_entry(data: dict[str, Any]) -> dict[str, Any]:
     """Strip optional keys and normalize types for storage."""
     out: dict[str, Any] = dict(data)
+
+    for price_key in (
+        CONF_ELECTRICITY_PRICE_PER_KWH,
+        CONF_GAS_PRICE_PER_KWH,
+        CONF_FEED_IN_PRICE_PER_KWH,
+    ):
+        if price_key in out and out[price_key] is not None:
+            out[price_key] = float(out[price_key])
+
+    if out.get(CONF_ELECTRICITY_PRICE_PER_KWH) is not None:
+        out.pop(CONF_ELECTRICITY_PRICE_SENSOR, None)
+    if out.get(CONF_GAS_PRICE_PER_KWH) is not None:
+        out.pop(CONF_GAS_PRICE_SENSOR, None)
+    if out.get(CONF_FEED_IN_PRICE_PER_KWH) is not None:
+        out.pop(CONF_FEED_IN_SENSOR, None)
 
     for key in (CONF_BATTERY_SOC_SENSOR, CONF_HOUSE_POWER_ENTITY):
         if out.get(key) in (None, "", "unknown"):

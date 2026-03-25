@@ -24,7 +24,7 @@ This project is released under the **[MIT License](LICENSE)**. It is a permissiv
 
 ## MVP feature set
 
-1. **Config flow** (UI): room name, required entities, global sensors, optional battery / load / COP text.
+1. **Config flow** (UI): room name, required entities, fixed €/kWh prices, shared-style global sensors (outdoor, PV forecast), optional battery / load / COP text.
 2. **Virtual `climate`** with `current_temperature`, `target_temperature`, `hvac_mode`, `hvac_action` and documented **custom attributes** (active source, cost estimates, effective power price, PV surplus hint, battery SoC if configured, decision text).
 3. **Diagnostic sensors** (optional in the UI) for source, costs, COP, PV factor, reason.
 4. **Heuristic engine** (no multi-hour optimisation): compares `gas_price / η` with `effective_electricity_price / COP`.
@@ -100,7 +100,7 @@ After a successful setup you should see a line like `HybridHeat: setting up conf
 **Global (per entry — usually pick the same entities each time)**  
 
 - Outdoor temperature  
-- Electricity, gas, feed-in sensors  
+- Fixed **grid, gas, and feed-in prices** (€/kWh in the config UI)  
 - One or more sensors for **expected PV power** (e.g. Forecast.Solar “power now / next hour”, depending on your setup)
 
 **Optional**  
@@ -110,7 +110,7 @@ After a successful setup you should see a line like `HybridHeat: setting up conf
 - COP points as text: `-5:2.2, 0:2.8, 5:3.4, 10:4.0`  
 - Heating efficiency η, hysteresis, min run / idle times  
 
-Keep **price units consistent** (e.g. all €/kWh); the integration only reads **numeric** states.
+Keep **price units consistent** (e.g. all €/kWh). New setups use **numeric price fields** in the config flow; older entries that still reference **price sensors** keep working until you reconfigure.
 
 ## Cost logic (short)
 

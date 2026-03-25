@@ -13,12 +13,12 @@
       },
       "globals": {
         "title": "Global energy & PV inputs",
-        "description": "Prices, outdoor temperature, and Forecast.Solar. Battery capacity / SoC bounds optional (0 kWh = no battery). Use base load in W for forecast vs consumption; battery SoC and house-power entities will come in options flow (TODO).",
+        "description": "Grid, gas, and feed-in prices as fixed €/kWh; outdoor temp and PV forecast from sensors. Battery optional (0 kWh = none). Base load in W; battery SoC / house power in options flow later (TODO).",
         "data": {
           "outdoor_temp_sensor_entity_id": "Outdoor temperature sensor",
-          "electricity_price_sensor_entity_id": "Grid electricity price sensor",
-          "gas_price_sensor_entity_id": "Gas price sensor",
-          "feed_in_sensor_entity_id": "Feed-in tariff sensor",
+          "electricity_price_per_kwh": "Grid electricity price (€/kWh)",
+          "gas_price_per_kwh": "Gas price (€/kWh, fuel)",
+          "feed_in_price_per_kwh": "Feed-in tariff (€/kWh)",
           "forecast_solar_entity_ids": "PV forecast sensors (one or more)",
           "battery_capacity_kwh": "Usable battery capacity kWh (0 = none)",
           "battery_min_soc_pct": "Lower SoC bound for heuristic (%)",

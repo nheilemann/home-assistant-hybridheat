@@ -34,13 +34,16 @@ class RoomConfig:
 
 @dataclass(slots=True)
 class GlobalSensorConfig:
-    """References to global sensors and optional battery / load inputs."""
+    """Global sensors, static €/kWh prices (or legacy price sensors), optional battery / load."""
 
     outdoor_temp_sensor_entity_id: str
-    electricity_price_sensor_entity_id: str
-    gas_price_sensor_entity_id: str
-    feed_in_sensor_entity_id: str
     forecast_solar_entity_ids: tuple[str, ...]
+    electricity_price_per_kwh: float | None = None
+    gas_price_per_kwh: float | None = None
+    feed_in_price_per_kwh: float | None = None
+    electricity_price_sensor_entity_id: str | None = None
+    gas_price_sensor_entity_id: str | None = None
+    feed_in_sensor_entity_id: str | None = None
     battery_soc_sensor_entity_id: str | None = None
     battery_capacity_kwh: float | None = None
     battery_min_soc_pct: float | None = None

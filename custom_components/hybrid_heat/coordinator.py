@@ -89,16 +89,32 @@ class HybridHeatCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         room_s = hass.states.get(rc.room_temp_sensor_entity_id)
         outdoor_s = hass.states.get(gc.outdoor_temp_sensor_entity_id)
-        el_s = hass.states.get(gc.electricity_price_sensor_entity_id)
-        gas_s = hass.states.get(gc.gas_price_sensor_entity_id)
-        fi_s = hass.states.get(gc.feed_in_sensor_entity_id)
+
+        if gc.electricity_price_per_kwh is not None:
+            el_price: float | None = float(gc.electricity_price_per_kwh)
+        else:
+            el_price = _float_state(
+                hass.states.get(gc.electricity_price_sensor_entity_id or "")
+            )
+
+        if gc.gas_price_per_kwh is not None:
+            gas_price: float | None = float(gc.gas_price_per_kwh)
+        else:
+            gas_price = _float_state(
+                hass.states.get(gc.gas_price_sensor_entity_id or "")
+            )
+
+        if gc.feed_in_price_per_kwh is not None:
+            fi_price: float | None = float(gc.feed_in_price_per_kwh)
+        else:
+            fi_price = _float_state(hass.states.get(gc.feed_in_sensor_entity_id or ""))
 
         snap = SnapshotInputs(
             room_temp_c=_float_state(room_s),
             outdoor_temp_c=_float_state(outdoor_s),
-            electricity_price=_float_state(el_s),
-            gas_price=_float_state(gas_s),
-            feed_in_price=_float_state(fi_s),
+            electricity_price=el_price,
+            gas_price=gas_price,
+            feed_in_price=fi_price,
         )
 
         if gc.battery_soc_sensor_entity_id:
