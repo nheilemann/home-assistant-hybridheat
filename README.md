@@ -68,6 +68,21 @@ HybridHeat is **not** in the default HACS store. Add the repo as a **custom repo
 
 Create **one config entry per room** (you may reuse the same global sensor entities across entries; a single shared global setup step is still `TODO`).
 
+### Troubleshooting & logs
+
+Config-flow validation errors often return **HTTP 400** in the browser **before** Python runs, so you may see nothing under `custom_components.hybrid_heat` until the flow reaches our code.
+
+- **Settings → System → Logs** (or **full log** download). Filter or search for `hybrid_heat`.
+- To force more detail, add to `configuration.yaml`:
+
+```yaml
+logger:
+  logs:
+    custom_components.hybrid_heat: debug
+```
+
+After a successful setup you should see a line like `HybridHeat: setting up config entry for room …` at **info** level.
+
 ## Configuration
 
 **Per room (required)**  
