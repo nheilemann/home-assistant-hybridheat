@@ -74,6 +74,8 @@ Config-flow validation errors often return **HTTP 400** in the browser **before*
 
 - In the browser **Network** tab, open the failing `flow/{flow_id}` request: a valid HA response is usually **JSON** `{"errors": { ... }}` (field-level hints). If you only see **plain text** and very few bytes, a **proxy (e.g. Cloudflare)** or the client may be altering the response—try from the local HA URL or check the full log on the server.
 
+- Config flow `data_schema` values must be serializable for the UI (selectors, standard `vol` validators). **Custom Python functions inside `vol.All` break** `voluptuous_serialize` and produce **500** (“Unable to convert schema”).
+
 - **Settings → System → Logs** (or **full log** download). Filter or search for `hybrid_heat`.
 - To force more detail, add to `configuration.yaml`:
 

@@ -43,38 +43,6 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-def _coerce_entity_id(value: Any) -> str:
-    """Normalize entity picker payload: HA frontend may send a string or {entity_id: ...}."""
-    if isinstance(value, dict):
-        for key in ("entity_id", "entityId", "id"):
-            inner = value.get(key)
-            if isinstance(inner, str) and inner.strip():
-                return inner.strip()
-        raise vol.Invalid("Expected entity_id string or object with entity_id")
-    if isinstance(value, str):
-        return value.strip()
-    raise vol.Invalid("Invalid entity value")
-
-
-def _coerce_entity_list(value: Any) -> list[str]:
-    if not isinstance(value, list):
-        raise vol.Invalid("Expected a list of entities")
-    return [_coerce_entity_id(v) for v in value]
-
-
-def _coerce_room_name(value: Any) -> str:
-    """Text field may be a string or a small object from newer frontends."""
-    if isinstance(value, dict):
-        for key in ("value", "text", "room_name", "name"):
-            inner = value.get(key)
-            if inner is not None and str(inner).strip():
-                return str(inner).strip()
-        return ""
-    if value is None:
-        return ""
-    return str(value).strip()
-
-
 def _climate_selector(multiple: bool = False) -> selector.EntitySelector:
     return selector.EntitySelector(
         selector.EntitySelectorConfig(domain="climate", multiple=multiple)
@@ -87,27 +55,22 @@ def _sensor_selector(multiple: bool = False) -> selector.EntitySelector:
     )
 
 
-def _optional_single_sensor() -> vol.Any:
-    """Optional entity picker: HA UI often sends '' or null; EntitySelector rejects those."""
+def _optional_single_sensor():
+    """Optional entity: UI may send null or ''; EntitySelector alone rejects those."""
+    return vol.Any(vol.In((None, "")), _sensor_selector())
+
+
+def _optional_cop_text():
+    """Optional multiline COP points; empty/null allowed."""
     return vol.Any(
         vol.In((None, "")),
-        vol.All(_coerce_entity_id, _sensor_selector()),
+        selector.TextSelector(
+            selector.TextSelectorConfig(
+                type=selector.TextSelectorType.TEXT,
+                multiline=True,
+            )
+        ),
     )
-
-
-def _required_climate_entity():
-    """Required climate entity with object-or-string coercion."""
-    return vol.All(_coerce_entity_id, _climate_selector())
-
-
-def _required_sensor_entity():
-    """Required sensor entity with object-or-string coercion."""
-    return vol.All(_coerce_entity_id, _sensor_selector())
-
-
-def _required_forecast_entities():
-    """Forecast entity list (may be list of objects from the UI)."""
-    return vol.All(_coerce_entity_list, _sensor_selector(multiple=True))
 
 
 class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[misc]
@@ -146,17 +109,14 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         try:
             schema = vol.Schema(
                 {
-                    vol.Required(CONF_ROOM_NAME): vol.All(
-                        _coerce_room_name,
-                        selector.TextSelector(
-                            selector.TextSelectorConfig(
-                                type=selector.TextSelectorType.TEXT,
-                            )
-                        ),
+                    vol.Required(CONF_ROOM_NAME): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.TEXT,
+                        )
                     ),
-                    vol.Required(CONF_HEATING_CLIMATE): _required_climate_entity(),
-                    vol.Required(CONF_AC_CLIMATE): _required_climate_entity(),
-                    vol.Required(CONF_ROOM_TEMP_SENSOR): _required_sensor_entity(),
+                    vol.Required(CONF_HEATING_CLIMATE): _climate_selector(),
+                    vol.Required(CONF_AC_CLIMATE): _climate_selector(),
+                    vol.Required(CONF_ROOM_TEMP_SENSOR): _sensor_selector(),
                 },
                 extra=vol.REMOVE_EXTRA,
             )
@@ -194,132 +154,123 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         try:
             schema = vol.Schema(
                 {
-                vol.Required(CONF_OUTDOOR_TEMP_SENSOR): _required_sensor_entity(),
-                vol.Required(CONF_ELECTRICITY_PRICE_SENSOR): _required_sensor_entity(),
-                vol.Required(CONF_GAS_PRICE_SENSOR): _required_sensor_entity(),
-                vol.Required(CONF_FEED_IN_SENSOR): _required_sensor_entity(),
-                vol.Required(CONF_FORECAST_SOLAR_ENTITIES): _required_forecast_entities(),
-                vol.Optional(CONF_BATTERY_SOC_SENSOR): _optional_single_sensor(),
-                vol.Optional(
-                    CONF_BATTERY_CAPACITY_KWH,
-                    default=0,
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        mode=selector.NumberSelectorMode.BOX,
-                        min=0,
-                        max=200,
-                        step=0.1,
-                        unit_of_measurement="kWh",
-                    )
-                ),
-                vol.Optional(
-                    CONF_BATTERY_MIN_SOC,
-                    default=15,
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        mode=selector.NumberSelectorMode.BOX,
-                        min=0,
-                        max=100,
-                        step=1,
-                        unit_of_measurement="%",
-                    )
-                ),
-                vol.Optional(
-                    CONF_BATTERY_MAX_SOC,
-                    default=95,
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        mode=selector.NumberSelectorMode.BOX,
-                        min=0,
-                        max=100,
-                        step=1,
-                        unit_of_measurement="%",
-                    )
-                ),
-                vol.Optional(CONF_HOUSE_POWER_ENTITY): _optional_single_sensor(),
-                vol.Optional(
-                    CONF_BASE_LOAD_W,
-                    default=400,
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        mode=selector.NumberSelectorMode.BOX,
-                        min=0,
-                        max=20000,
-                        step=50,
-                        unit_of_measurement="W",
-                    )
-                ),
-                vol.Optional(
-                    CONF_HEATING_EFFICIENCY,
-                    default=DEFAULT_HEATING_EFFICIENCY,
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        mode=selector.NumberSelectorMode.BOX,
-                        min=0.5,
-                        max=1.0,
-                        step=0.01,
-                    )
-                ),
-                vol.Optional(
-                    CONF_HYSTERESIS,
-                    default=DEFAULT_HYSTERESIS,
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        mode=selector.NumberSelectorMode.BOX,
-                        min=0.1,
-                        max=3.0,
-                        step=0.05,
-                        unit_of_measurement="°C",
-                    )
-                ),
-                vol.Optional(
-                    CONF_MIN_RUN_HEATING,
-                    default=DEFAULT_MIN_RUN_HEATING,
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        mode=selector.NumberSelectorMode.BOX,
-                        min=60,
-                        max=7200,
-                        step=60,
-                        unit_of_measurement="s",
-                    )
-                ),
-                vol.Optional(
-                    CONF_MIN_RUN_AC,
-                    default=DEFAULT_MIN_RUN_AC,
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        mode=selector.NumberSelectorMode.BOX,
-                        min=60,
-                        max=7200,
-                        step=60,
-                        unit_of_measurement="s",
-                    )
-                ),
-                vol.Optional(
-                    CONF_MIN_IDLE,
-                    default=DEFAULT_MIN_IDLE,
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        mode=selector.NumberSelectorMode.BOX,
-                        min=0,
-                        max=7200,
-                        step=60,
-                        unit_of_measurement="s",
-                    )
-                ),
-                vol.Optional(CONF_COP_POINTS): vol.Any(
-                    vol.In((None, "")),
-                    vol.All(
-                        _coerce_room_name,
-                        selector.TextSelector(
-                            selector.TextSelectorConfig(
-                                type=selector.TextSelectorType.TEXT,
-                                multiline=True,
-                            )
-                        ),
+                    vol.Required(CONF_OUTDOOR_TEMP_SENSOR): _sensor_selector(),
+                    vol.Required(CONF_ELECTRICITY_PRICE_SENSOR): _sensor_selector(),
+                    vol.Required(CONF_GAS_PRICE_SENSOR): _sensor_selector(),
+                    vol.Required(CONF_FEED_IN_SENSOR): _sensor_selector(),
+                    vol.Required(CONF_FORECAST_SOLAR_ENTITIES): _sensor_selector(
+                        multiple=True
                     ),
-                ),
+                    vol.Optional(CONF_BATTERY_SOC_SENSOR): _optional_single_sensor(),
+                    vol.Optional(
+                        CONF_BATTERY_CAPACITY_KWH,
+                        default=0,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            mode=selector.NumberSelectorMode.BOX,
+                            min=0,
+                            max=200,
+                            step=0.1,
+                            unit_of_measurement="kWh",
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_BATTERY_MIN_SOC,
+                        default=15,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            mode=selector.NumberSelectorMode.BOX,
+                            min=0,
+                            max=100,
+                            step=1,
+                            unit_of_measurement="%",
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_BATTERY_MAX_SOC,
+                        default=95,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            mode=selector.NumberSelectorMode.BOX,
+                            min=0,
+                            max=100,
+                            step=1,
+                            unit_of_measurement="%",
+                        )
+                    ),
+                    vol.Optional(CONF_HOUSE_POWER_ENTITY): _optional_single_sensor(),
+                    vol.Optional(
+                        CONF_BASE_LOAD_W,
+                        default=400,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            mode=selector.NumberSelectorMode.BOX,
+                            min=0,
+                            max=20000,
+                            step=50,
+                            unit_of_measurement="W",
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_HEATING_EFFICIENCY,
+                        default=DEFAULT_HEATING_EFFICIENCY,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            mode=selector.NumberSelectorMode.BOX,
+                            min=0.5,
+                            max=1.0,
+                            step=0.01,
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_HYSTERESIS,
+                        default=DEFAULT_HYSTERESIS,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            mode=selector.NumberSelectorMode.BOX,
+                            min=0.1,
+                            max=3.0,
+                            step=0.05,
+                            unit_of_measurement="°C",
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_MIN_RUN_HEATING,
+                        default=DEFAULT_MIN_RUN_HEATING,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            mode=selector.NumberSelectorMode.BOX,
+                            min=60,
+                            max=7200,
+                            step=60,
+                            unit_of_measurement="s",
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_MIN_RUN_AC,
+                        default=DEFAULT_MIN_RUN_AC,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            mode=selector.NumberSelectorMode.BOX,
+                            min=60,
+                            max=7200,
+                            step=60,
+                            unit_of_measurement="s",
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_MIN_IDLE,
+                        default=DEFAULT_MIN_IDLE,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            mode=selector.NumberSelectorMode.BOX,
+                            min=0,
+                            max=7200,
+                            step=60,
+                            unit_of_measurement="s",
+                        )
+                    ),
+                    vol.Optional(CONF_COP_POINTS): _optional_cop_text(),
                 },
                 extra=vol.REMOVE_EXTRA,
             )
