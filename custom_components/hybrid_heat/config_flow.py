@@ -55,24 +55,6 @@ def _sensor_selector(multiple: bool = False) -> selector.EntitySelector:
     )
 
 
-def _optional_single_sensor():
-    """Optional entity: UI may send null or ''; EntitySelector alone rejects those."""
-    return vol.Any(vol.In((None, "")), _sensor_selector())
-
-
-def _optional_cop_text():
-    """Optional multiline COP points; empty/null allowed."""
-    return vol.Any(
-        vol.In((None, "")),
-        selector.TextSelector(
-            selector.TextSelectorConfig(
-                type=selector.TextSelectorType.TEXT,
-                multiline=True,
-            )
-        ),
-    )
-
-
 class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[misc]
     """Handle a config flow for HybridHeat (one config entry = one room)."""
 
@@ -169,7 +151,6 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     vol.Required(CONF_FORECAST_SOLAR_ENTITIES): _sensor_selector(
                         multiple=True
                     ),
-                    vol.Optional(CONF_BATTERY_SOC_SENSOR): _optional_single_sensor(),
                     vol.Optional(
                         CONF_BATTERY_CAPACITY_KWH,
                         default=0,
@@ -206,7 +187,6 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                             unit_of_measurement="%",
                         )
                     ),
-                    vol.Optional(CONF_HOUSE_POWER_ENTITY): _optional_single_sensor(),
                     vol.Optional(
                         CONF_BASE_LOAD_W,
                         default=400,
@@ -278,7 +258,12 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                             unit_of_measurement="s",
                         )
                     ),
-                    vol.Optional(CONF_COP_POINTS): _optional_cop_text(),
+                    vol.Optional(CONF_COP_POINTS): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.TEXT,
+                            multiline=True,
+                        )
+                    ),
                 },
                 extra=vol.REMOVE_EXTRA,
             )

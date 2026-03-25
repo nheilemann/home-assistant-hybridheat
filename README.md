@@ -74,7 +74,7 @@ Config-flow validation errors often return **HTTP 400** in the browser **before*
 
 - In the browser **Network** tab, open the failing `flow/{flow_id}` request: a valid HA response is usually **JSON** `{"errors": { ... }}` (field-level hints). If you only see **plain text** and very few bytes, a **proxy (e.g. Cloudflare)** or the client may be altering the response—try from the local HA URL or check the full log on the server.
 
-- Config flow `data_schema` values must be serializable for the UI (selectors, standard `vol` validators). **Custom Python functions inside `vol.All` break** `voluptuous_serialize` and produce **500** (“Unable to convert schema”).
+- Config flow `data_schema` values must be serializable for the UI (selectors, standard `vol` validators). **Custom Python functions inside `vol.All` break** `voluptuous_serialize` and produce **500** (“Unable to convert schema”). **`vol.Any` (including `vol.Any(vol.In(...), EntitySelector)`) is also not serializable** in current HA / `voluptuous_serialize` — avoid it in `data_schema`; use plain `vol.Optional` + a single `EntitySelector` / `TextSelector` only.
 
 - **Translations:** The UI reads labels from `custom_components/hybrid_heat/translations/{lang}.json` (e.g. `en.json`, `de.json`). `strings.json` alone is often not enough. After updating files, do a **full Home Assistant restart** (not only “reload integration”). If labels stay raw, hard-refresh the browser or clear the frontend cache.
 
@@ -105,8 +105,8 @@ After a successful setup you should see a line like `HybridHeat: setting up conf
 
 **Optional**  
 
-- Battery SoC, usable capacity (kWh), SoC limits for heuristics  
-- House power or base load (W)  
+- Battery **capacity** (kWh) and SoC **limits** for heuristics (no SoC sensor in the config UI yet — options flow `TODO`; set capacity to `0` to disable battery)  
+- **Base load** (W) for forecast vs consumption (house power entity picker removed from the flow for the same serialization constraint)  
 - COP points as text: `-5:2.2, 0:2.8, 5:3.4, 10:4.0`  
 - Heating efficiency η, hysteresis, min run / idle times  
 
