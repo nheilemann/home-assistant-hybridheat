@@ -99,7 +99,7 @@ After a successful setup you should see a line like `HybridHeat: setting up conf
 
 **Global (per entry — usually pick the same entities each time)**  
 
-- Outdoor temperature  
+- Outdoor temperature (`sensor.*`, `weather.*`, or another entity with a numeric state or a `temperature` / `current_temperature` attribute — plain `weather` states like `sunny` are not numeric)  
 - Fixed **grid, gas, and feed-in prices** (€/kWh in the config UI)  
 - One or more sensors for **expected PV power** (e.g. Forecast.Solar “power now / next hour”, depending on your setup)
 

@@ -110,6 +110,20 @@ def compute_effective_electricity_price(
     return max(0.0, raw + nudge)
 
 
+def missing_cost_inputs_reason(inputs: SnapshotInputs) -> str:
+    """Human-readable list of snapshot fields that block `evaluate_costs`."""
+    parts: list[str] = []
+    if inputs.electricity_price is None:
+        parts.append("Netzstrompreis")
+    if inputs.gas_price is None:
+        parts.append("Gaspreis")
+    if inputs.feed_in_price is None:
+        parts.append("Einspeisevergütung")
+    if inputs.outdoor_temp_c is None:
+        parts.append("Außentemperatur")
+    return f"Fehlend: {', '.join(parts)} — keine Heizentscheidung"
+
+
 def evaluate_costs(
     inputs: SnapshotInputs,
     room: RoomConfig,
@@ -198,7 +212,7 @@ def decide(
             desired_active_source=SOURCE_NONE,
             should_apply_heat=False,
             costs=CostEvaluation(pv_surplus_factor=compute_pv_surplus_factor(inputs, global_cfg)[0]),
-            reason="preise oder außentemperatur nicht verfügbar — keine Heizentscheidung",
+            reason=missing_cost_inputs_reason(inputs),
             lock_source=True,
         )
 

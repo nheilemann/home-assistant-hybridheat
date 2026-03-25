@@ -28,6 +28,29 @@ def _float_state(state: State | None) -> float | None:
         return None
 
 
+def _temperature_c(state: State | None) -> float | None:
+    """°C from numeric state or common attributes (weather, climate, sensors)."""
+    if state is None:
+        return None
+    v = _float_state(state)
+    if v is not None:
+        return v
+    for key in (
+        "temperature",
+        "current_temperature",
+        "native_temperature",
+        "native_value",
+    ):
+        raw = state.attributes.get(key)
+        if raw is None or raw in ("unknown", "unavailable"):
+            continue
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
 def _try_power_w(state: State | None) -> float | None:
     """Parse power in W from state or common attributes."""
     if state is None:
@@ -110,8 +133,8 @@ class HybridHeatCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             fi_price = _float_state(hass.states.get(gc.feed_in_sensor_entity_id or ""))
 
         snap = SnapshotInputs(
-            room_temp_c=_float_state(room_s),
-            outdoor_temp_c=_float_state(outdoor_s),
+            room_temp_c=_temperature_c(room_s),
+            outdoor_temp_c=_temperature_c(outdoor_s),
             electricity_price=el_price,
             gas_price=gas_price,
             feed_in_price=fi_price,
