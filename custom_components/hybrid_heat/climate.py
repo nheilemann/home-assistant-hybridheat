@@ -74,7 +74,7 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
             name=rc.room_name,
             manufacturer="HybridHeat",
             model="Virtuelles Hybrid-Raumthermostat",
-            sw_version="0.2a8",
+            sw_version="0.2a9",
         )
         self._heating_id = rc.heating_climate_entity_id
         self._ac_id = rc.ac_climate_entity_id
@@ -109,11 +109,13 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
     async def async_set_temperature(self, **kwargs: Any) -> None:
         if (temp := kwargs.get("temperature")) is not None:
             self._attr_target_temperature = float(temp)
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
+        await self.coordinator.async_refresh()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         self._attr_hvac_mode = hvac_mode
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
+        await self.coordinator.async_refresh()
 
     @callback
     def _handle_coordinator_update(self) -> None:
