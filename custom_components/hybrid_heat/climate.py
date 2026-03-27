@@ -16,11 +16,12 @@ from homeassistant.components.climate import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
@@ -74,7 +75,9 @@ async def async_setup_entry(
     async_add_entities([HybridHeatClimate(coordinator, entry)])
 
 
-class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity):
+class HybridHeatClimate(
+    CoordinatorEntity[HybridHeatCoordinator], ClimateEntity, RestoreEntity
+):
     """Room-level hybrid thermostat (virtual)."""
 
     _attr_has_entity_name = True
@@ -94,7 +97,7 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
             name=rc.room_name,
             manufacturer="HybridHeat",
             model="Virtuelles Hybrid-Raumthermostat",
-            sw_version="0.2a22",
+            sw_version="0.2a23",
         )
         self._heating_id = rc.heating_climate_entity_id
         self._ac_id = rc.ac_climate_entity_id
@@ -111,6 +114,8 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
         self._last_child_apply_fingerprint: tuple[Any, ...] | None = None
 
     async def async_added_to_hass(self) -> None:
+        if (last := await self.async_get_last_state()) is not None:
+            self._restore_from_last_state(last)
         await super().async_added_to_hass()
 
         @callback
@@ -120,6 +125,24 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
         self.async_on_remove(
             async_track_state_change_event(self.hass, [self._ac_id], _ac_state_changed)
         )
+
+    def _restore_from_last_state(self, last: State) -> None:
+        """Restore hvac_mode and target after HA restart (Recorder / restore_state)."""
+        if last.state not in ("unknown", "unavailable", None, ""):
+            mode = self._coerce_hvac_mode(last.state)
+            if mode == HVACMode.COOL and self._ac_cool_known_unsupported():
+                mode = HVACMode.HEAT
+            self._attr_hvac_mode = mode
+        raw_temp = last.attributes.get("temperature")
+        if raw_temp is not None:
+            try:
+                t = float(raw_temp)
+                self._attr_target_temperature = max(
+                    self._attr_min_temp, min(self._attr_max_temp, t)
+                )
+            except (TypeError, ValueError):
+                pass
+        self._last_child_apply_fingerprint = None
 
     def _ac_cool_known_unsupported(self) -> bool:
         """True only when AC state lists hvac_modes and 'cool' is not among them."""
