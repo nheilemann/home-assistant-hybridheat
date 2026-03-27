@@ -13,7 +13,7 @@
       },
       "globals": {
         "title": "Global energy & PV inputs",
-        "description": "Grid, gas, and feed-in prices as fixed €/kWh; outdoor temp and PV forecast from sensors. Battery optional (0 kWh = none). Base load in W; battery SoC / house power in options flow later (TODO).",
+        "description": "Energy prices as fixed €/kWh; outdoor temp and PV forecast from sensors. COP hint: use EU label SCOP (average climate) as anchor near ~7 °C, e.g. -7:2.8, 0:3.6, 7:4.6, 12:5.0.",
         "data": {
           "outdoor_temp_sensor_entity_id": "Outdoor temperature sensor",
           "electricity_price_per_kwh": "Grid electricity price (€/kWh)",
@@ -29,7 +29,7 @@
           "min_run_heating_seconds": "Minimum run time heating (s)",
           "min_run_ac_seconds": "Minimum run time AC (s)",
           "min_idle_after_switch_seconds": "Minimum idle after source change (s)",
-          "cop_points": "Optional COP points, format: -5:2.2, 0:2.8, …"
+          "cop_points": "COP points (outdoor_temp:COP), e.g. -7:2.8, 0:3.6, 7:4.6, 12:5.0"
         }
       }
     },
@@ -49,7 +49,7 @@
     "step": {
       "init": {
         "title": "Shared settings for all rooms",
-        "description": "These values are applied to all HybridHeat room entries.",
+        "description": "These values are applied to all HybridHeat room entries. COP hint: use EU label SCOP (average climate) as anchor near ~7 °C.",
         "data": {
           "outdoor_temp_sensor_entity_id": "Outdoor temperature sensor",
           "electricity_price_per_kwh": "Grid electricity price (€/kWh)",
@@ -65,7 +65,7 @@
           "min_run_heating_seconds": "Minimum run time heating (s)",
           "min_run_ac_seconds": "Minimum run time AC (s)",
           "min_idle_after_switch_seconds": "Minimum idle after source change (s)",
-          "cop_points": "Optional COP points, format: -5:2.2, 0:2.8, …"
+          "cop_points": "COP points (outdoor_temp:COP), e.g. -7:2.8, 0:3.6, 7:4.6, 12:5.0"
         }
       }
     }

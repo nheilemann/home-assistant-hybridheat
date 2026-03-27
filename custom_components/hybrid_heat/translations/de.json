@@ -13,7 +13,7 @@
       },
       "globals": {
         "title": "Globale Energie- und PV-Eingänge",
-        "description": "Netz-, Gas- und Einspeisepreis fest als €/kWh; Außentemperatur und Forecast.Solar als Sensoren. Batterie optional (0 kWh = keine). Grundlast in W; SoC-/Hausleistungs-Entity später Options-Flow (TODO).",
+        "description": "Energiepreise fest als €/kWh; Außentemperatur und Forecast.Solar als Sensoren. COP-Hinweis: EU-Label SCOP (Durchschnittsklima) als Anker bei ~7 °C nutzen, z. B. -7:2.8, 0:3.6, 7:4.6, 12:5.0.",
         "data": {
           "outdoor_temp_sensor_entity_id": "Außentemperatur-Sensor",
           "electricity_price_per_kwh": "Netz-Strompreis (€/kWh)",
@@ -29,7 +29,7 @@
           "min_run_heating_seconds": "Mindestlaufzeit Heizung (s)",
           "min_run_ac_seconds": "Mindestlaufzeit Klima (s)",
           "min_idle_after_switch_seconds": "Mindeststillstand nach Quellenwechsel (s)",
-          "cop_points": "COP-Stützpunkte optional, Format: -5:2.2, 0:2.8, …"
+          "cop_points": "COP-Stützpunkte (T_außen:COP), z. B. -7:2.8, 0:3.6, 7:4.6, 12:5.0"
         }
       }
     },
@@ -49,7 +49,7 @@
     "step": {
       "init": {
         "title": "Gemeinsame Einstellungen für alle Räume",
-        "description": "Diese Werte werden für alle HybridHeat-Räume übernommen.",
+        "description": "Diese Werte werden für alle HybridHeat-Räume übernommen. COP-Hinweis: EU-Label SCOP (Durchschnittsklima) als Anker bei ~7 °C nutzen.",
         "data": {
           "outdoor_temp_sensor_entity_id": "Außentemperatur-Sensor",
           "electricity_price_per_kwh": "Netz-Strompreis (€/kWh)",
@@ -65,7 +65,7 @@
           "min_run_heating_seconds": "Mindestlaufzeit Heizung (s)",
           "min_run_ac_seconds": "Mindestlaufzeit Klima (s)",
           "min_idle_after_switch_seconds": "Mindeststillstand nach Quellenwechsel (s)",
-          "cop_points": "COP-Stützpunkte optional, Format: -5:2.2, 0:2.8, …"
+          "cop_points": "COP-Stützpunkte (T_außen:COP), z. B. -7:2.8, 0:3.6, 7:4.6, 12:5.0"
         }
       }
     }

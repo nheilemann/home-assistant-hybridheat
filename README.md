@@ -112,6 +112,46 @@ After a successful setup you should see a line like `HybridHeat: setting up conf
 
 Keep **price units consistent** (e.g. all €/kWh). New setups use **numeric price fields** in the config flow; older entries that still reference **price sensors** keep working until you reconfigure.
 
+### COP points from EU energy label
+
+`cop_points` expects operating points in the form:
+
+- `outdoor_temp_c:cop`
+- Example: `-7:2.8, 0:3.6, 7:4.6, 12:5.0`
+
+How to read the label:
+
+- **SEER** (left side) is cooling season efficiency -> not used for heating decision.
+- **SCOP** (right side) is heating season efficiency -> this is the useful anchor for `cop_points`.
+- Many labels show SCOP per climate zone:
+  - `warmer` (often highest SCOP),
+  - `average` (usually central Europe reference),
+  - `colder` (if declared).
+
+Practical mapping into `cop_points`:
+
+1. Use **SCOP (average climate)** as the COP anchor around **+7 °C**.
+2. Choose a lower COP at negative temperature and a higher COP at mild temperature.
+3. Keep values plausible and monotonic (COP increases with outdoor temperature).
+
+Example from your shown Hisense label:
+
+- Heating SCOP values shown: **5.3** (warmer), **4.6** (average), colder not declared.
+- Good initial `cop_points` set for HybridHeat:
+  - `-7:2.8, 0:3.6, 7:4.6, 12:5.0`
+
+Why this works:
+
+- `7:4.6` is aligned with the declared **average-climate SCOP 4.6**.
+- Lower temperatures get lower COP (`-7`, `0`).
+- Mild temperatures get higher COP (`12`), but still below/around warm-climate seasonal behavior.
+
+Fine-tuning later:
+
+- If HybridHeat prefers AC too often in cold weather, lower the cold points (e.g. `-7`).
+- If HybridHeat prefers primary heating too often in mild weather, raise warm points slightly.
+- Best accuracy comes from measured data (power + heat output), but SCOP-based points are a solid start.
+
 ## Cost logic (short)
 
 - **Gas heat (per kWh useful heat):** `gas_heat_cost = gas_price / heating_efficiency`
