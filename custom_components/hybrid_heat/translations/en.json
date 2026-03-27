@@ -3,12 +3,20 @@
     "step": {
       "user": {
         "title": "HybridHeat – Room",
-        "description": "One entry is one room with a single virtual climate entity.",
+        "description": "One entry is one room with a single virtual climate entity (heat / cool).",
         "data": {
           "room_name": "Room name",
           "heating_climate_entity_id": "Primary heating source (climate)",
-          "ac_climate_entity_id": "Heat-pump / AC climate (heat mode)",
+          "ac_climate_entity_id": "Heat pump / AC climate (heat & cool)",
           "room_temp_sensor_entity_id": "Room temperature sensor"
+        }
+      },
+      "confirm_ac_no_cool": {
+        "title": "AC has no cool mode?",
+        "description": "The selected climate entity ({ac_entity}) does not list HVAC mode \"cool\". The virtual thermostat cannot offer cooling. Pick another AC entity or continue with heat only.",
+        "menu_options": {
+          "choose_other_ac": "Choose another AC entity",
+          "continue_without_cool": "Continue (heat only)"
         }
       },
       "globals": {
@@ -29,7 +37,7 @@
           "min_run_heating_seconds": "Minimum run time heating (s)",
           "min_run_ac_seconds": "Minimum run time AC (s)",
           "min_idle_after_switch_seconds": "Minimum idle after source change (s)",
-          "ac_setpoint_offset_c": "AC setpoint offset (°C): added to hybrid target when the AC heats (e.g. 2 if indoor unit reads warm)",
+          "ac_setpoint_offset_c": "AC setpoint offset (°C): added to hybrid target when heating, subtracted when cooling (e.g. indoor sensor correction, 2)",
           "cop_points": "COP points (outdoor_temp:COP), e.g. -7:2.8, 0:3.6, 7:4.6, 12:5.0"
         }
       }
@@ -66,10 +74,15 @@
           "min_run_heating_seconds": "Minimum run time heating (s)",
           "min_run_ac_seconds": "Minimum run time AC (s)",
           "min_idle_after_switch_seconds": "Minimum idle after source change (s)",
-          "ac_setpoint_offset_c": "AC setpoint offset (°C): this room only; added to hybrid target when AC heats",
+          "ac_setpoint_offset_c": "AC setpoint offset (°C): this room only; added when heating, subtracted when cooling",
           "cop_points": "COP points (outdoor_temp:COP), e.g. -7:2.8, 0:3.6, 7:4.6, 12:5.0"
         }
       }
+    }
+  },
+  "exceptions": {
+    "ac_cool_not_supported": {
+      "message": "The AC entity {entity_id} does not expose HVAC mode \"cool\". Pick a climate entity that supports cooling, or use heat/off only."
     }
   }
 }

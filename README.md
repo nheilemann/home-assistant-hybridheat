@@ -1,6 +1,6 @@
 # HybridHeat – Home Assistant custom integration
 
-**Hybrid room heating with cost-aware source selection.** HybridHeat exposes one **virtual `climate` entity per room**. You only set **target temperature** and **mode** (`off` / `heat`). The integration chooses between a **heating `climate`** (e.g. floor / gas) and an **AC `climate`** (split in heat mode) and drives both real devices conservatively in the background.
+**Hybrid room heating (and optional cooling) with cost-aware source selection.** HybridHeat exposes one **virtual `climate` entity per room**. You set **target temperature** and **mode** (`off` / `heat` / `cool`). In **heat**, the integration chooses between a **heating `climate`** (e.g. floor / gas) and an **AC `climate`**; in **cool**, only the **AC** runs (primary heating is off). Both real devices are driven conservatively in the background.
 
 | | |
 |---|---|
@@ -14,7 +14,7 @@ This project is released under the **[MIT License](LICENSE)**. It is a permissiv
 
 ## Scope and goals
 
-- One **virtual room thermostat** that behaves like a normal heat thermostat.
+- One **virtual room thermostat** with **heat** and **cool** modes (primary heating is not used for cooling).
 - Each **polling cycle**, choose which physical heat source is active based on **marginal heat cost per kWh**, using:
   - gas price, grid electricity price, feed-in tariff  
   - **Forecast.Solar** / PV forecast (as an **economic / surplus signal**, not as solar gain into the room model)  
@@ -27,7 +27,7 @@ This project is released under the **[MIT License](LICENSE)**. It is a permissiv
 1. **Config flow** (UI): room name, required entities, fixed €/kWh prices, shared-style global sensors (outdoor, PV forecast), optional battery / load / COP text.
 2. **Virtual `climate`** with `current_temperature`, `target_temperature`, `hvac_mode`, `hvac_action` and documented **custom attributes** (active source, cost estimates, effective power price, PV surplus hint, battery SoC if configured, decision text).
 3. **Diagnostic sensors** (optional in the UI) for source, costs, COP, PV factor, reason.
-4. **Heuristic engine** (no multi-hour optimisation): compares `gas_price / η` with `effective_electricity_price / COP`.
+4. **Heuristic engine** (no multi-hour optimisation): compares `gas_price / η` with `effective_electricity_price / COP` for heating; **cool** uses the AC only with the same effective electricity and **COP** curve as a rough cooling-efficiency hint (SEER-accurate points are not required in the MVP).
 
 ## Architecture
 
@@ -157,19 +157,29 @@ Fine-tuning later:
 
 - **Gas heat (per kWh useful heat):** `gas_heat_cost = gas_price / heating_efficiency`
 - **AC heat:** `ac_heat_cost = effective_electricity_price / COP(T_outdoor)`
+- **AC cool (diagnostics / same curve):** same formula is used as a **rough** marginal electricity cost per kWh of cooling; tuning is still via the configured COP points.
 - **Effective electricity:** blend of grid and feed-in tariff weighted by a **PV surplus factor** (0…1) from forecast minus load. PV is **not** treated as “free”; export opportunity cost is at least the feed-in value.
 
 ## Virtual climate behaviour
 
-- MVP modes: **`off`**, **`heat`** (structure can later add **`auto`**, `TODO`).
+- MVP modes: **`off`**, **`heat`**, **`cool`** (structure can later add **`auto`**, `TODO`).
+- In **`cool`**, child AC setpoint is **hybrid target minus** the configured AC offset (in **`heat`** it is target **plus** offset).
 - Extra attributes include: `active_source` (`heating` / `ac` / `none`), cost estimates, `effective_electricity_price`, `pv_surplus_expected`, `battery_soc`, `decision_reason`.
 
 Child devices are only called when mode or setpoint **actually needs** to change.
 
+## Manual testing (checklist)
+
+1. **Heat:** Set virtual mode **heat**, target above room temperature — expect primary or AC to run per decision; `hvac_action` **heating** when a source is active.  
+2. **Cool:** With an AC that lists **`cool`** in Developer Tools → States (`hvac_modes`), set mode **cool**, target below room temp — expect AC in cool; `hvac_action` **cooling** when the engine applies cool.  
+3. **Off:** Virtual **off** — both child climates should go **off**.  
+4. **AC without cool:** If the configured AC has a non-empty `hvac_modes` without `cool`, the virtual entity should **not** offer **cool**; switching via service should raise a clear error. If `hvac_modes` is missing/empty, **cool** may still appear until the device reports modes — a failed `set_hvac_mode` is logged with a hint to check `hvac_modes`. **New install:** when the AC state already lists modes without `cool`, the config flow shows a **menu** (pick another AC or continue heat-only).  
+5. **Mode change:** After **heat** ↔ **cool** ↔ **off**, confirm no stale run (wrong child still on) using child entity states.
+
 ## Known MVP limitations
 
 - No MPC, no learned thermal model.  
-- **Cooling** not in scope.  
+- **Cooling** uses only the AC; **COP** for cool is the same interpolated curve as for heat (approximation).  
 - **Battery** is not charged/discharged by this integration.  
 - **Forecast** parsing is simple — use a **template sensor** in front of unusual entities.  
 - One entry per room (shared settings are synced across all room entries via options flow).  

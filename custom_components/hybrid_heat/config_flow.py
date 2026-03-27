@@ -7,7 +7,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import selector
 
 from .const import (
@@ -81,6 +81,17 @@ def _sensor_selector(multiple: bool = False) -> selector.EntitySelector:
     )
 
 
+def _ac_cool_known_unsupported(hass: HomeAssistant, entity_id: str) -> bool:
+    """True when AC state reports hvac_modes and 'cool' is not included (setup may reject)."""
+    state = hass.states.get(entity_id)
+    if state is None or state.state in ("unknown", "unavailable"):
+        return False
+    modes = state.attributes.get("hvac_modes")
+    if not modes:
+        return False
+    return not any(str(m).lower() == "cool" for m in modes)
+
+
 class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[misc]
     """Handle a config flow for HybridHeat (one config entry = one room)."""
 
@@ -88,6 +99,22 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
 
     def __init__(self) -> None:
         self._room_data: dict[str, Any] = {}
+        self._room_data_pending: dict[str, Any] | None = None
+
+    def _build_user_schema(self) -> vol.Schema:
+        return vol.Schema(
+            {
+                vol.Required(CONF_ROOM_NAME): selector.TextSelector(
+                    selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                    )
+                ),
+                vol.Required(CONF_HEATING_CLIMATE): _climate_selector(),
+                vol.Required(CONF_AC_CLIMATE): _climate_selector(),
+                vol.Required(CONF_ROOM_TEMP_SENSOR): _sensor_selector(),
+            },
+            extra=vol.REMOVE_EXTRA,
+        )
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -104,6 +131,15 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     errors["base"] = "empty_room_name"
                 elif heat_ent == ac_ent:
                     errors["base"] = "same_climate_entities"
+                elif isinstance(ac_ent, str) and _ac_cool_known_unsupported(
+                    self.hass, ac_ent
+                ):
+                    self._room_data_pending = user_input
+                    return self.async_show_menu(
+                        step_id="confirm_ac_no_cool",
+                        menu_options=["choose_other_ac", "continue_without_cool"],
+                        description_placeholders={"ac_entity": ac_ent},
+                    )
                 else:
                     unique_id = f"{DOMAIN}_{room_name.lower().replace(' ', '_')}"
                     await self.async_set_unique_id(unique_id)
@@ -119,19 +155,7 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 errors["base"] = "unknown"
 
         try:
-            schema = vol.Schema(
-                {
-                    vol.Required(CONF_ROOM_NAME): selector.TextSelector(
-                        selector.TextSelectorConfig(
-                            type=selector.TextSelectorType.TEXT,
-                        )
-                    ),
-                    vol.Required(CONF_HEATING_CLIMATE): _climate_selector(),
-                    vol.Required(CONF_AC_CLIMATE): _climate_selector(),
-                    vol.Required(CONF_ROOM_TEMP_SENSOR): _sensor_selector(),
-                },
-                extra=vol.REMOVE_EXTRA,
-            )
+            schema = self._build_user_schema()
         except Exception:  # noqa: BLE001
             _LOGGER.exception("HybridHeat: building user-step schema failed")
             return self.async_abort(reason="unknown")
@@ -141,6 +165,47 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             data_schema=schema,
             errors=errors,
         )
+
+    async def async_step_choose_other_ac(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Menu: go back to room step and keep entered values."""
+        pending = self._room_data_pending
+        self._room_data_pending = None
+        try:
+            schema = self._build_user_schema()
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("HybridHeat: building user-step schema failed")
+            return self.async_abort(reason="unknown")
+        return self.async_show_form(
+            step_id="user",
+            data_schema=self.add_suggested_values_to_schema(schema, pending or {}),
+            errors={},
+        )
+
+    async def async_step_continue_without_cool(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Menu: accept AC without cool in hvac_modes (heat-only virtual cool)."""
+        pending = self._room_data_pending
+        self._room_data_pending = None
+        if not pending:
+            return self.async_abort(reason="unknown")
+        room_name = str(pending.get(CONF_ROOM_NAME, "")).strip()
+        heat_ent = pending.get(CONF_HEATING_CLIMATE)
+        ac_ent = pending.get(CONF_AC_CLIMATE)
+        if not room_name or heat_ent == ac_ent:
+            return self.async_abort(reason="unknown")
+        unique_id = f"{DOMAIN}_{room_name.lower().replace(' ', '_')}"
+        await self.async_set_unique_id(unique_id)
+        self._abort_if_unique_id_configured()
+        self._room_data = pending
+        if isinstance(ac_ent, str):
+            _LOGGER.info(
+                "HybridHeat: Einrichtung ohne Kühlmodus (AC %s: kein cool in hvac_modes).",
+                ac_ent,
+            )
+        return await self.async_step_globals()
 
     async def async_step_globals(
         self, user_input: dict[str, Any] | None = None

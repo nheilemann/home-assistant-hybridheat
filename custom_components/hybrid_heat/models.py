@@ -87,6 +87,7 @@ class DecisionResult:
 
     desired_active_source: ActiveSource
     should_apply_heat: bool
+    should_apply_cool: bool = False
     costs: CostEvaluation = field(default_factory=CostEvaluation)
     reason: str = ""
     # When True, prefer keeping current source even if the other is marginally cheaper (anti-flap).

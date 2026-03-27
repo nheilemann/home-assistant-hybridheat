@@ -15,8 +15,9 @@ from homeassistant.components.climate import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -36,7 +37,7 @@ from .const import (
     SOURCE_NONE,
 )
 from .coordinator import HybridHeatCoordinator
-from .engine import compute_pv_surplus_factor, decide, evaluate_costs
+from .engine import compute_pv_surplus_factor, decide, decide_cool, evaluate_costs
 from .models import ActiveSource, CostEvaluation, DecisionResult, SnapshotInputs
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,7 +60,6 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
     _attr_has_entity_name = True
     _attr_name = None
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
-    _attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT]
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
     _attr_min_temp = 7.0
     _attr_max_temp = 30.0
@@ -74,7 +74,7 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
             name=rc.room_name,
             manufacturer="HybridHeat",
             model="Virtuelles Hybrid-Raumthermostat",
-            sw_version="0.2a14",
+            sw_version="0.2a17",
         )
         self._heating_id = rc.heating_climate_entity_id
         self._ac_id = rc.ac_climate_entity_id
@@ -86,6 +86,34 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
         self._extra_attrs: dict[str, Any] = {}
         self._last_mode_command: dict[str, tuple[str, float]] = {}
         self._last_temp_command: dict[str, tuple[float, float]] = {}
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+
+        @callback
+        def _ac_state_changed(_event: Event) -> None:
+            self.async_write_ha_state()
+
+        self.async_on_remove(
+            async_track_state_change_event(self.hass, [self._ac_id], _ac_state_changed)
+        )
+
+    def _ac_cool_known_unsupported(self) -> bool:
+        """True only when AC state lists hvac_modes and 'cool' is not among them."""
+        state = self.hass.states.get(self._ac_id)
+        if state is None or state.state in ("unknown", "unavailable"):
+            return False
+        modes = state.attributes.get("hvac_modes")
+        if not modes:
+            return False
+        return not any(str(m).lower() == "cool" for m in modes)
+
+    @property
+    def hvac_modes(self) -> list[HVACMode]:
+        modes = [HVACMode.OFF, HVACMode.HEAT]
+        if not self._ac_cool_known_unsupported():
+            modes.append(HVACMode.COOL)
+        return modes
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -106,6 +134,8 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
             return HVACAction.OFF
         if self._active_source == SOURCE_NONE:
             return HVACAction.IDLE
+        if self._attr_hvac_mode == HVACMode.COOL:
+            return HVACAction.COOLING
         return HVACAction.HEATING
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
@@ -115,6 +145,17 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
         await self.coordinator.async_refresh()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+        if hvac_mode == HVACMode.COOL and self._ac_cool_known_unsupported():
+            raise HomeAssistantError(
+                f"The AC entity {self._ac_id} does not list HVAC mode cool.",
+                translation_domain=DOMAIN,
+                translation_key="ac_cool_not_supported",
+                translation_placeholders={"entity_id": self._ac_id},
+            )
+        if hvac_mode != self._attr_hvac_mode:
+            self._active_source = SOURCE_NONE
+            self._last_source_change_at = None
+            self._source_run_started_at = None
         self._attr_hvac_mode = hvac_mode
         self.async_write_ha_state()
         await self.coordinator.async_refresh()
@@ -133,13 +174,33 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
         _, pv_surplus_expected = compute_pv_surplus_factor(inputs, gc)
         self.coordinator.last_pv_surplus_expected = pv_surplus_expected
 
+        if self._attr_hvac_mode == HVACMode.COOL and self._ac_cool_known_unsupported():
+            _LOGGER.warning(
+                "HybridHeat: Klima-Entity %s bietet keinen Modus cool — virtuelles Thermostat wechselt auf Heizen.",
+                self._ac_id,
+            )
+            self._attr_hvac_mode = HVACMode.HEAT
+            self._active_source = SOURCE_NONE
+            self._last_source_change_at = None
+            self._source_run_started_at = None
+
         if self._attr_hvac_mode == HVACMode.OFF:
             costs = evaluate_costs(inputs, rc, gc) or CostEvaluation()
             result = DecisionResult(
                 desired_active_source=SOURCE_NONE,
                 should_apply_heat=False,
+                should_apply_cool=False,
                 costs=costs,
                 reason="HVAC AUS — keine Steuerung der Unterentities",
+            )
+        elif self._attr_hvac_mode == HVACMode.COOL:
+            result = decide_cool(
+                inputs,
+                rc,
+                gc,
+                current_source=self._active_source,
+                now=now,
+                source_run_started_at=self._source_run_started_at,
             )
         else:
             result = decide(
@@ -189,25 +250,41 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
             await self._async_both_off()
             return
 
-        if not result.should_apply_heat:
-            await self._async_both_off()
-            return
-
         target = float(self._attr_target_temperature)
         rc = self.coordinator.room_config
-        ac_target = max(
+        ac_heat_target = max(
             self._attr_min_temp,
             min(
                 self._attr_max_temp,
                 target + float(rc.ac_setpoint_offset_c),
             ),
         )
+        ac_cool_target = max(
+            self._attr_min_temp,
+            min(
+                self._attr_max_temp,
+                target - float(rc.ac_setpoint_offset_c),
+            ),
+        )
+
+        if self._attr_hvac_mode == HVACMode.COOL:
+            if not result.should_apply_cool:
+                await self._async_both_off()
+                return
+            await self._async_ensure_mode(self._heating_id, HVACMode.OFF)
+            await self._async_ensure_mode(self._ac_id, HVACMode.COOL, ac_cool_target)
+            return
+
+        if not result.should_apply_heat:
+            await self._async_both_off()
+            return
+
         if result.desired_active_source == SOURCE_HEATING:
             await self._async_ensure_mode(self._ac_id, HVACMode.OFF)
             await self._async_ensure_mode(self._heating_id, HVACMode.HEAT, target)
         elif result.desired_active_source == SOURCE_AC:
             await self._async_ensure_mode(self._heating_id, HVACMode.OFF)
-            await self._async_ensure_mode(self._ac_id, HVACMode.HEAT, ac_target)
+            await self._async_ensure_mode(self._ac_id, HVACMode.HEAT, ac_heat_target)
         else:
             await self._async_both_off()
 
@@ -255,19 +332,37 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
             except HomeAssistantError:
                 _LOGGER.debug("climate.turn_on nicht unterstützt oder fehlgeschlagen: %s", entity_id)
 
-        if cur_mode_raw != HVACMode.HEAT:
-            if self._is_recent_mode_command(entity_id, "heat"):
+        if mode not in (HVACMode.HEAT, HVACMode.COOL):
+            return
+
+        mode_token = mode.value
+        norm_cur = str(cur_mode_raw).lower()
+        if norm_cur != mode_token:
+            if self._is_recent_mode_command(entity_id, mode_token):
                 return
             try:
                 await self.hass.services.async_call(
                     "climate",
                     "set_hvac_mode",
-                    {"entity_id": entity_id, "hvac_mode": HVACMode.HEAT},
+                    {"entity_id": entity_id, "hvac_mode": mode},
                     blocking=False,
                 )
-                self._remember_mode_command(entity_id, "heat")
+                self._remember_mode_command(entity_id, mode_token)
             except (HomeAssistantError, ValueError) as err:
-                _LOGGER.warning("HybridHeat: HVAC heat für %s fehlgeschlagen: %s", entity_id, err)
+                if mode == HVACMode.COOL:
+                    _LOGGER.warning(
+                        "HybridHeat: Kühlmodus für %s fehlgeschlagen: %s. "
+                        "Prüfen Sie, ob die Entity \"cool\" unterstützt (Attribut hvac_modes).",
+                        entity_id,
+                        err,
+                    )
+                else:
+                    _LOGGER.warning(
+                        "HybridHeat: HVAC %s für %s fehlgeschlagen: %s",
+                        mode_token,
+                        entity_id,
+                        err,
+                    )
                 return
 
         if temperature is None:

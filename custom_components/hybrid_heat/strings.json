@@ -3,12 +3,20 @@
     "step": {
       "user": {
         "title": "HybridHeat – Raum",
-        "description": "Ein Eintrag entspricht einem Raum mit einer virtuellen Heiz-Climate-Entity.",
+        "description": "Ein Eintrag entspricht einem Raum mit einer virtuellen Climate-Entity (Heizen/Kühlen).",
         "data": {
           "room_name": "Raumname",
           "heating_climate_entity_id": "Primäre Heizquelle (Climate)",
-          "ac_climate_entity_id": "Klimaanlage-Climate (Heizmodus)",
+          "ac_climate_entity_id": "Klimaanlage (Climate, Heizen/Kühlen)",
           "room_temp_sensor_entity_id": "Raumtemperatur-Sensor"
+        }
+      },
+      "confirm_ac_no_cool": {
+        "title": "Klima ohne Kühlmodus?",
+        "description": "Die gewählte Klima-Entity ({ac_entity}) listet keinen Modus „cool“. Die virtuelle Entity kann dann nicht kühlen. Sie können eine andere Klima-Entity wählen oder nur Heizen fortfahren.",
+        "menu_options": {
+          "choose_other_ac": "Andere Klima-Entity wählen",
+          "continue_without_cool": "Nur Heizen — fortfahren"
         }
       },
       "globals": {
@@ -29,7 +37,7 @@
           "min_run_heating_seconds": "Mindestlaufzeit Heizung (s)",
           "min_run_ac_seconds": "Mindestlaufzeit Klima (s)",
           "min_idle_after_switch_seconds": "Mindeststillstand nach Quellenwechsel (s)",
-          "ac_setpoint_offset_c": "Klima-Soll-Offset (°C): zur Hybrid-Solltemperatur addiert, wenn die Klimaanlage heizt (bei zu warmem Innensensor, z. B. 2)",
+          "ac_setpoint_offset_c": "Klima-Soll-Offset (°C): zur Hybrid-Soll addiert beim Heizen, subtrahiert beim Kühlen (z. B. Innensensor-Korrektur, 2)",
           "cop_points": "COP-Stützpunkte (T_außen:COP), z. B. -7:2.8, 0:3.6, 7:4.6, 12:5.0"
         }
       }
@@ -66,10 +74,15 @@
           "min_run_heating_seconds": "Mindestlaufzeit Heizung (s)",
           "min_run_ac_seconds": "Mindestlaufzeit Klima (s)",
           "min_idle_after_switch_seconds": "Mindeststillstand nach Quellenwechsel (s)",
-          "ac_setpoint_offset_c": "Klima-Soll-Offset (°C): nur dieser Raum; zur Hybrid-Soll addiert, wenn die Klima heizt",
+          "ac_setpoint_offset_c": "Klima-Soll-Offset (°C): nur dieser Raum; addiert beim Heizen, subtrahiert beim Kühlen",
           "cop_points": "COP-Stützpunkte (T_außen:COP), z. B. -7:2.8, 0:3.6, 7:4.6, 12:5.0"
         }
       }
+    }
+  },
+  "exceptions": {
+    "ac_cool_not_supported": {
+      "message": "Die Klima-Entity {entity_id} listet keinen Modus „cool“. Wählen Sie eine Climate-Entity mit Kühlen oder nutzen Sie nur Heizen/Aus."
     }
   }
 }

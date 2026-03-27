@@ -192,6 +192,29 @@ def heating_demand_with_hysteresis(
     return False, f"room {room_temp:.2f}°C above heat-on threshold {target - half:.2f}°C"
 
 
+def cooling_demand_with_hysteresis(
+    room_temp: float | None,
+    target: float | None,
+    hysteresis_c: float,
+    currently_cooling: bool,
+) -> tuple[bool, str]:
+    """Demand True if we should actively cool toward target (symmetric band, mirrored vs heating)."""
+    if room_temp is None or target is None:
+        return False, "Raum- oder Solltemperatur fehlt"
+
+    half = max(hysteresis_c, 0.05) / 2.0
+    if currently_cooling:
+        if room_temp > target + half:
+            return True, f"Raum {room_temp:.2f}°C über Kühl-Ein-Grenze {target + half:.2f}°C"
+        if room_temp < target - half:
+            return False, f"Raum {room_temp:.2f}°C unter Kühl-Aus-Grenze {target - half:.2f}°C"
+        return True, f"innerhalb Kühlband (Hysterese), Raum {room_temp:.2f}°C"
+
+    if room_temp > target + half:
+        return True, f"Raum {room_temp:.2f}°C über Kühl-Ein-Grenze {target + half:.2f}°C"
+    return False, f"Raum {room_temp:.2f}°C unter Kühl-Ein-Grenze {target + half:.2f}°C"
+
+
 def decide(
     inputs: SnapshotInputs,
     room: RoomConfig,
@@ -211,6 +234,7 @@ def decide(
         return DecisionResult(
             desired_active_source=SOURCE_NONE,
             should_apply_heat=False,
+            should_apply_cool=False,
             costs=CostEvaluation(pv_surplus_factor=compute_pv_surplus_factor(inputs, global_cfg)[0]),
             reason=missing_cost_inputs_reason(inputs),
             lock_source=True,
@@ -228,6 +252,7 @@ def decide(
         return DecisionResult(
             desired_active_source=SOURCE_NONE,
             should_apply_heat=False,
+            should_apply_cool=False,
             costs=costs,
             reason=f"kein Heizbedarf ({heat_reason}); PV-Überschuss erwartet: {pv_surplus_expected}",
         )
@@ -238,6 +263,7 @@ def decide(
         return DecisionResult(
             desired_active_source=SOURCE_NONE,
             should_apply_heat=True,
+            should_apply_cool=False,
             costs=costs,
             reason="kosten nicht berechenbar",
             lock_source=True,
@@ -293,7 +319,80 @@ def decide(
     return DecisionResult(
         desired_active_source=desired,
         should_apply_heat=True,
+        should_apply_cool=False,
         costs=replace(costs),
         reason=reason,
         lock_source=lock_source,
+    )
+
+
+def decide_cool(
+    inputs: SnapshotInputs,
+    room: RoomConfig,
+    global_cfg: GlobalSensorConfig,
+    *,
+    current_source: ActiveSource,
+    now: datetime,
+    source_run_started_at: datetime | None,
+) -> DecisionResult:
+    """Cool with AC only (primary heating is not used). Same timing stability as heat on AC."""
+
+    _, pv_surplus_expected = compute_pv_surplus_factor(inputs, global_cfg)
+    costs = evaluate_costs(inputs, room, global_cfg)
+    if costs is None:
+        return DecisionResult(
+            desired_active_source=SOURCE_NONE,
+            should_apply_heat=False,
+            should_apply_cool=False,
+            costs=CostEvaluation(pv_surplus_factor=compute_pv_surplus_factor(inputs, global_cfg)[0]),
+            reason=missing_cost_inputs_reason(inputs).replace(
+                "Heizentscheidung", "Kühlentscheidung"
+            ),
+            lock_source=True,
+        )
+
+    room_temp = inputs.room_temp_c
+    target = inputs.target_temp_c
+    cooling_now = current_source == SOURCE_AC
+    need_cool, cool_reason = cooling_demand_with_hysteresis(
+        room_temp, target, room.hysteresis_c, cooling_now
+    )
+
+    if not need_cool:
+        reason_idle = (
+            f"kein Kühlbedarf ({cool_reason}); PV-Überschuss erwartet: {pv_surplus_expected}"
+        )
+        if current_source == SOURCE_AC and source_run_started_at is not None:
+            ran = (now - source_run_started_at).total_seconds()
+            if ran < room.min_run_ac_s:
+                return DecisionResult(
+                    desired_active_source=SOURCE_AC,
+                    should_apply_heat=False,
+                    should_apply_cool=True,
+                    costs=costs,
+                    reason=(
+                        f"{reason_idle}; mindestlaufzeit Klima ({ran:.0f}s < {room.min_run_ac_s}s)"
+                    ),
+                    lock_source=True,
+                )
+        return DecisionResult(
+            desired_active_source=SOURCE_NONE,
+            should_apply_heat=False,
+            should_apply_cool=False,
+            costs=costs,
+            reason=reason_idle,
+        )
+
+    reason = (
+        f"{cool_reason}. Klima Kühlmodus. COP≈{costs.cop_at_outdoor:.2f} "
+        f"(Heizkennlinie als grobe Näherung), eff. Strom {costs.effective_electricity_price:.4f}"
+    )
+
+    return DecisionResult(
+        desired_active_source=SOURCE_AC,
+        should_apply_heat=False,
+        should_apply_cool=True,
+        costs=replace(costs),
+        reason=reason,
+        lock_source=False,
     )
