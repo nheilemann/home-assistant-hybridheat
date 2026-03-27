@@ -100,7 +100,7 @@ After a successful setup you should see a line like `HybridHeat: setting up conf
 **Global (per entry — usually pick the same entities each time)**  
 
 - Outdoor temperature (`sensor.*`, `weather.*`, or another entity with a numeric state or a `temperature` / `current_temperature` attribute — plain `weather` states like `sunny` are not numeric)  
-- Fixed **grid, gas, and feed-in prices** (€/kWh in the config UI)  
+- Fixed **grid, primary-energy, and feed-in prices** (€/kWh in the config UI)  
 - One or more sensors for **expected PV power** (e.g. Forecast.Solar “power now / next hour”, depending on your setup)
 
 **Optional**  
@@ -108,6 +108,7 @@ After a successful setup you should see a line like `HybridHeat: setting up conf
 - Battery **capacity** (kWh) and SoC **limits** for heuristics (no SoC sensor in the config UI yet — options flow `TODO`; set capacity to `0` to disable battery)  
 - **Base load** (W) for forecast vs consumption (house power entity picker removed from the flow for the same serialization constraint)  
 - COP points as text: `-5:2.2, 0:2.8, 5:3.4, 10:4.0`  
+- **AC setpoint offset (°C):** added only to the commanded temperature of the AC `climate` when HybridHeat selects it, so the unit keeps heating if its **built-in sensor** reaches setpoint before your **room thermostat sensor** (e.g. room 19 °C, AC thinks 21 °C → try offset **+2**). Clamped to the virtual thermostat min/max.  
 - Heating efficiency η, hysteresis, min run / idle times  
 
 Keep **price units consistent** (e.g. all €/kWh). New setups use **numeric price fields** in the config flow; older entries that still reference **price sensors** keep working until you reconfigure.

@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     CONF_AC_CLIMATE,
+    CONF_AC_SETPOINT_OFFSET,
     CONF_BASE_LOAD_W,
     CONF_BATTERY_CAPACITY_KWH,
     CONF_BATTERY_MAX_SOC,
@@ -38,6 +39,7 @@ from .const import (
     DEFAULT_HYSTERESIS,
     DEFAULT_MIN_IDLE,
     DEFAULT_MIN_RUN_AC,
+    DEFAULT_AC_SETPOINT_OFFSET,
     DEFAULT_MIN_RUN_HEATING,
     DOMAIN,
     PLATFORMS,
@@ -98,6 +100,9 @@ def build_room_config(entry: ConfigEntry) -> RoomConfig:
         min_run_heating_s=int(d.get(CONF_MIN_RUN_HEATING, DEFAULT_MIN_RUN_HEATING)),
         min_run_ac_s=int(d.get(CONF_MIN_RUN_AC, DEFAULT_MIN_RUN_AC)),
         min_idle_after_switch_s=int(d.get(CONF_MIN_IDLE, DEFAULT_MIN_IDLE)),
+        ac_setpoint_offset_c=float(
+            d.get(CONF_AC_SETPOINT_OFFSET, DEFAULT_AC_SETPOINT_OFFSET)
+        ),
     )
 
 

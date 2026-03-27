@@ -30,6 +30,7 @@ class RoomConfig:
     min_run_heating_s: int
     min_run_ac_s: int
     min_idle_after_switch_s: int
+    ac_setpoint_offset_c: float = 0.0
 
 
 @dataclass(slots=True)

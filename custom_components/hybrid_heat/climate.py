@@ -74,7 +74,7 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
             name=rc.room_name,
             manufacturer="HybridHeat",
             model="Virtuelles Hybrid-Raumthermostat",
-            sw_version="0.2a13",
+            sw_version="0.2a14",
         )
         self._heating_id = rc.heating_climate_entity_id
         self._ac_id = rc.ac_climate_entity_id
@@ -193,13 +193,21 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
             await self._async_both_off()
             return
 
-        target = self._attr_target_temperature
+        target = float(self._attr_target_temperature)
+        rc = self.coordinator.room_config
+        ac_target = max(
+            self._attr_min_temp,
+            min(
+                self._attr_max_temp,
+                target + float(rc.ac_setpoint_offset_c),
+            ),
+        )
         if result.desired_active_source == SOURCE_HEATING:
             await self._async_ensure_mode(self._ac_id, HVACMode.OFF)
             await self._async_ensure_mode(self._heating_id, HVACMode.HEAT, target)
         elif result.desired_active_source == SOURCE_AC:
             await self._async_ensure_mode(self._heating_id, HVACMode.OFF)
-            await self._async_ensure_mode(self._ac_id, HVACMode.HEAT, target)
+            await self._async_ensure_mode(self._ac_id, HVACMode.HEAT, ac_target)
         else:
             await self._async_both_off()
 

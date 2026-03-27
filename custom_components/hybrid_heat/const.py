@@ -32,6 +32,7 @@ CONF_HYSTERESIS: Final = "hysteresis"
 CONF_MIN_RUN_HEATING: Final = "min_run_heating_seconds"
 CONF_MIN_RUN_AC: Final = "min_run_ac_seconds"
 CONF_MIN_IDLE: Final = "min_idle_after_switch_seconds"
+CONF_AC_SETPOINT_OFFSET: Final = "ac_setpoint_offset_c"
 
 # Defaults
 DEFAULT_HEATING_EFFICIENCY: Final = 0.92
@@ -43,6 +44,7 @@ DEFAULT_UPDATE_INTERVAL: Final = 60  # seconds
 DEFAULT_ELECTRICITY_PRICE_PER_KWH: Final = 0.35
 DEFAULT_GAS_PRICE_PER_KWH: Final = 0.12
 DEFAULT_FEED_IN_PRICE_PER_KWH: Final = 0.08
+DEFAULT_AC_SETPOINT_OFFSET: Final = 0.0  # °C added to commanded AC setpoint vs virtual thermostat
 
 # COP support points: outdoor_temp_c -> COP (linear interpolation between)
 DEFAULT_COP_POINTS: Final[tuple[tuple[float, float], ...]] = (

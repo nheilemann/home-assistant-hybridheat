@@ -12,6 +12,7 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_AC_CLIMATE,
+    CONF_AC_SETPOINT_OFFSET,
     CONF_BASE_LOAD_W,
     CONF_BATTERY_CAPACITY_KWH,
     CONF_BATTERY_MAX_SOC,
@@ -43,6 +44,7 @@ from .const import (
     DEFAULT_MIN_IDLE,
     DEFAULT_MIN_RUN_AC,
     DEFAULT_MIN_RUN_HEATING,
+    DEFAULT_AC_SETPOINT_OFFSET,
     DOMAIN,
 )
 
@@ -315,6 +317,18 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                             unit_of_measurement="s",
                         )
                     ),
+                    vol.Optional(
+                        CONF_AC_SETPOINT_OFFSET,
+                        default=DEFAULT_AC_SETPOINT_OFFSET,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            mode=selector.NumberSelectorMode.BOX,
+                            min=-2,
+                            max=8,
+                            step=0.1,
+                            unit_of_measurement="°C",
+                        )
+                    ),
                     vol.Optional(CONF_COP_POINTS): selector.TextSelector(
                         selector.TextSelectorConfig(
                             type=selector.TextSelectorType.TEXT,
@@ -361,6 +375,9 @@ def _normalize_entry(data: dict[str, Any]) -> dict[str, Any]:
         out.pop(CONF_GAS_PRICE_SENSOR, None)
     if out.get(CONF_FEED_IN_PRICE_PER_KWH) is not None:
         out.pop(CONF_FEED_IN_SENSOR, None)
+
+    if CONF_AC_SETPOINT_OFFSET in out and out[CONF_AC_SETPOINT_OFFSET] is not None:
+        out[CONF_AC_SETPOINT_OFFSET] = float(out[CONF_AC_SETPOINT_OFFSET])
 
     for key in (CONF_BATTERY_SOC_SENSOR, CONF_HOUSE_POWER_ENTITY):
         if out.get(key) in (None, "", "unknown"):
@@ -415,6 +432,11 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 for entry in self.hass.config_entries.async_entries(DOMAIN):
                     data = dict(entry.data)
                     data.update(patch)
+                    if entry.entry_id == self._entry.entry_id:
+                        if CONF_AC_SETPOINT_OFFSET in normalized:
+                            data[CONF_AC_SETPOINT_OFFSET] = normalized[
+                                CONF_AC_SETPOINT_OFFSET
+                            ]
                     self.hass.config_entries.async_update_entry(entry, data=data)
                     await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_create_entry(title="", data={})
@@ -467,6 +489,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
             (CONF_BASE_LOAD_W, 400.0),
             (CONF_HEATING_EFFICIENCY, DEFAULT_HEATING_EFFICIENCY),
             (CONF_HYSTERESIS, DEFAULT_HYSTERESIS),
+            (CONF_AC_SETPOINT_OFFSET, DEFAULT_AC_SETPOINT_OFFSET),
         ):
             raw = d.get(key, fallback)
             try:
@@ -617,6 +640,15 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                         max=7200,
                         step=60,
                         unit_of_measurement="s",
+                    )
+                ),
+                vol.Optional(CONF_AC_SETPOINT_OFFSET): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        mode=selector.NumberSelectorMode.BOX,
+                        min=-2,
+                        max=8,
+                        step=0.1,
+                        unit_of_measurement="°C",
                     )
                 ),
                 vol.Optional(CONF_COP_POINTS): selector.TextSelector(

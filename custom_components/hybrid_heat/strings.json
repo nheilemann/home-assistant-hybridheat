@@ -29,6 +29,7 @@
           "min_run_heating_seconds": "Mindestlaufzeit Heizung (s)",
           "min_run_ac_seconds": "Mindestlaufzeit Klima (s)",
           "min_idle_after_switch_seconds": "Mindeststillstand nach Quellenwechsel (s)",
+          "ac_setpoint_offset_c": "Klima-Soll-Offset (°C): zur Hybrid-Solltemperatur addiert, wenn die Klimaanlage heizt (bei zu warmem Innensensor, z. B. 2)",
           "cop_points": "COP-Stützpunkte (T_außen:COP), z. B. -7:2.8, 0:3.6, 7:4.6, 12:5.0"
         }
       }
@@ -49,7 +50,7 @@
     "step": {
       "init": {
         "title": "Gemeinsame Einstellungen für alle Räume",
-        "description": "Diese Werte werden für alle HybridHeat-Räume übernommen. COP-Hinweis: EU-Label SCOP (Durchschnittsklima) als Anker bei ~7 °C nutzen.",
+        "description": "Die meisten Felder gelten für alle HybridHeat-Räume. Ausnahme: „Klima-Soll-Offset“ wird nur für den aktuellen Raum gespeichert. COP-Hinweis: EU-Label SCOP (Durchschnittsklima) als Anker bei ~7 °C.",
         "data": {
           "outdoor_temp_sensor_entity_id": "Außentemperatur-Sensor",
           "electricity_price_per_kwh": "Netz-Strompreis (€/kWh)",
@@ -65,6 +66,7 @@
           "min_run_heating_seconds": "Mindestlaufzeit Heizung (s)",
           "min_run_ac_seconds": "Mindestlaufzeit Klima (s)",
           "min_idle_after_switch_seconds": "Mindeststillstand nach Quellenwechsel (s)",
+          "ac_setpoint_offset_c": "Klima-Soll-Offset (°C): nur dieser Raum; zur Hybrid-Soll addiert, wenn die Klima heizt",
           "cop_points": "COP-Stützpunkte (T_außen:COP), z. B. -7:2.8, 0:3.6, 7:4.6, 12:5.0"
         }
       }
