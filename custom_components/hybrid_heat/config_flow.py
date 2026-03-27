@@ -401,7 +401,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         super().__init__()
-        self.config_entry = config_entry
+        self._entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -443,8 +443,8 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
         )
 
     def _current_values(self) -> dict[str, Any]:
-        d = dict(self.config_entry.data)
-        d.update(self.config_entry.options)
+        d = dict(self._entry.data)
+        d.update(self._entry.options)
         out: dict[str, Any] = {}
 
         forecast = d.get(CONF_FORECAST_SOLAR_ENTITIES, [])
