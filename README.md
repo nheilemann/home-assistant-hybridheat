@@ -66,7 +66,7 @@ HybridHeat is **not** in the default HACS store. Add the repo as a **custom repo
 
 ### After installation
 
-Create **one config entry per room** (you may reuse the same global sensor entities across entries; a single shared global setup step is still `TODO`).
+Create **one config entry per room**. Shared settings can be edited from any room entry via the gear icon (options) and are applied to all HybridHeat rooms.
 
 ### Troubleshooting & logs
 
@@ -131,8 +131,7 @@ Child devices are only called when mode or setpoint **actually needs** to change
 - **Cooling** not in scope.  
 - **Battery** is not charged/discharged by this integration.  
 - **Forecast** parsing is simple — use a **template sensor** in front of unusual entities.  
-- One entry per room: **shared** global config without duplication is `TODO`.  
-- **Options flow** for post-setup edits is not implemented yet.
+- One entry per room (shared settings are synced across all room entries via options flow).  
 
 ## Roadmap / TODOs
 

@@ -6,7 +6,7 @@
         "description": "One entry is one room with a single virtual climate entity.",
         "data": {
           "room_name": "Room name",
-          "heating_climate_entity_id": "Heating climate (e.g. floor / gas)",
+          "heating_climate_entity_id": "Primary heating source (climate)",
           "ac_climate_entity_id": "Heat-pump / AC climate (heat mode)",
           "room_temp_sensor_entity_id": "Room temperature sensor"
         }
@@ -43,6 +43,31 @@
       "already_configured": "This room is already configured.",
       "options_not_implemented": "Options flow is not implemented yet (TODO).",
       "unknown": "Configuration aborted — see log (logger: custom_components.hybrid_heat)."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Shared settings for all rooms",
+        "description": "These values are applied to all HybridHeat room entries.",
+        "data": {
+          "outdoor_temp_sensor_entity_id": "Outdoor temperature sensor",
+          "electricity_price_per_kwh": "Grid electricity price (€/kWh)",
+          "gas_price_per_kwh": "Gas price (€/kWh, fuel)",
+          "feed_in_price_per_kwh": "Feed-in tariff (€/kWh)",
+          "forecast_solar_entity_ids": "PV forecast sensors (one or more)",
+          "battery_capacity_kwh": "Usable battery capacity kWh (0 = none)",
+          "battery_min_soc_pct": "Lower SoC bound for heuristic (%)",
+          "battery_max_soc_pct": "Upper SoC bound for heuristic (%)",
+          "base_load_w": "Base load in W (forecast vs consumption)",
+          "heating_efficiency": "Heating efficiency (0–1)",
+          "hysteresis": "Hysteresis band width (°C)",
+          "min_run_heating_seconds": "Minimum run time heating (s)",
+          "min_run_ac_seconds": "Minimum run time AC (s)",
+          "min_idle_after_switch_seconds": "Minimum idle after source change (s)",
+          "cop_points": "Optional COP points, format: -5:2.2, 0:2.8, …"
+        }
+      }
     }
   }
 }

@@ -74,7 +74,7 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
             name=rc.room_name,
             manufacturer="HybridHeat",
             model="Virtuelles Hybrid-Raumthermostat",
-            sw_version="0.2a9",
+            sw_version="0.2a10",
         )
         self._heating_id = rc.heating_climate_entity_id
         self._ac_id = rc.ac_climate_entity_id
@@ -84,6 +84,8 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
         self._attr_target_temperature = 20.5
         self._attr_hvac_mode = HVACMode.HEAT
         self._extra_attrs: dict[str, Any] = {}
+        self._last_mode_command: dict[str, tuple[str, float]] = {}
+        self._last_temp_command: dict[str, tuple[float, float]] = {}
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -220,6 +222,8 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
 
         if mode == HVACMode.OFF:
             if cur_mode_raw not in (HVACMode.OFF, "off"):
+                if self._is_recent_mode_command(entity_id, "off"):
+                    return
                 try:
                     await self.hass.services.async_call(
                         "climate",
@@ -227,6 +231,7 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
                         {"entity_id": entity_id, "hvac_mode": HVACMode.OFF},
                         blocking=False,
                     )
+                    self._remember_mode_command(entity_id, "off")
                 except (HomeAssistantError, ValueError) as err:
                     _LOGGER.debug("set_hvac_mode off failed %s: %s", entity_id, err)
             return
@@ -243,6 +248,8 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
                 _LOGGER.debug("climate.turn_on nicht unterstützt oder fehlgeschlagen: %s", entity_id)
 
         if cur_mode_raw != HVACMode.HEAT:
+            if self._is_recent_mode_command(entity_id, "heat"):
+                return
             try:
                 await self.hass.services.async_call(
                     "climate",
@@ -250,6 +257,7 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
                     {"entity_id": entity_id, "hvac_mode": HVACMode.HEAT},
                     blocking=False,
                 )
+                self._remember_mode_command(entity_id, "heat")
             except (HomeAssistantError, ValueError) as err:
                 _LOGGER.warning("HybridHeat: HVAC heat für %s fehlgeschlagen: %s", entity_id, err)
                 return
@@ -265,6 +273,8 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
 
         if cur_tf is not None and abs(cur_tf - temperature) < 0.25:
             return
+        if self._is_recent_temp_command(entity_id, temperature):
+            return
 
         try:
             await self.hass.services.async_call(
@@ -273,5 +283,26 @@ class HybridHeatClimate(CoordinatorEntity[HybridHeatCoordinator], ClimateEntity)
                 {"entity_id": entity_id, "temperature": temperature},
                 blocking=False,
             )
+            self._remember_temp_command(entity_id, temperature)
         except (HomeAssistantError, ValueError) as err:
             _LOGGER.warning("HybridHeat: Solltemperatur %s: %s", entity_id, err)
+
+    def _is_recent_mode_command(self, entity_id: str, mode: str) -> bool:
+        last = self._last_mode_command.get(entity_id)
+        if last is None:
+            return False
+        last_mode, ts = last
+        return last_mode == mode and (dt_util.utcnow().timestamp() - ts) < 20
+
+    def _remember_mode_command(self, entity_id: str, mode: str) -> None:
+        self._last_mode_command[entity_id] = (mode, dt_util.utcnow().timestamp())
+
+    def _is_recent_temp_command(self, entity_id: str, temperature: float) -> bool:
+        last = self._last_temp_command.get(entity_id)
+        if last is None:
+            return False
+        last_temp, ts = last
+        return abs(last_temp - temperature) < 0.2 and (dt_util.utcnow().timestamp() - ts) < 20
+
+    def _remember_temp_command(self, entity_id: str, temperature: float) -> None:
+        self._last_temp_command[entity_id] = (float(temperature), dt_util.utcnow().timestamp())

@@ -85,7 +85,8 @@ def parse_cop_points(raw: Any) -> tuple[CopPoint, ...]:
 
 def build_room_config(entry: ConfigEntry) -> RoomConfig:
     """Hydrate `RoomConfig` from a config entry."""
-    d = entry.data
+    d = dict(entry.data)
+    d.update(entry.options)
     return RoomConfig(
         room_name=d[CONF_ROOM_NAME],
         heating_climate_entity_id=d[CONF_HEATING_CLIMATE],
@@ -102,7 +103,8 @@ def build_room_config(entry: ConfigEntry) -> RoomConfig:
 
 def build_global_config(entry: ConfigEntry) -> GlobalSensorConfig:
     """Hydrate global sensor references from a config entry."""
-    d = entry.data
+    d = dict(entry.data)
+    d.update(entry.options)
     fs = d.get(CONF_FORECAST_SOLAR_ENTITIES) or []
     if isinstance(fs, str):
         fs = [fs]

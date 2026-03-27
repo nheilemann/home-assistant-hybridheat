@@ -48,6 +48,24 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+SHARED_OPTION_KEYS: tuple[str, ...] = (
+    CONF_OUTDOOR_TEMP_SENSOR,
+    CONF_ELECTRICITY_PRICE_PER_KWH,
+    CONF_GAS_PRICE_PER_KWH,
+    CONF_FEED_IN_PRICE_PER_KWH,
+    CONF_FORECAST_SOLAR_ENTITIES,
+    CONF_BATTERY_CAPACITY_KWH,
+    CONF_BATTERY_MIN_SOC,
+    CONF_BATTERY_MAX_SOC,
+    CONF_BASE_LOAD_W,
+    CONF_HEATING_EFFICIENCY,
+    CONF_HYSTERESIS,
+    CONF_MIN_RUN_HEATING,
+    CONF_MIN_RUN_AC,
+    CONF_MIN_IDLE,
+    CONF_COP_POINTS,
+)
+
 
 def _climate_selector(multiple: bool = False) -> selector.EntitySelector:
     return selector.EntitySelector(
@@ -379,7 +397,7 @@ def _normalize_entry(data: dict[str, Any]) -> dict[str, Any]:
 
 
 class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
-    """Placeholder options flow — extend in a follow-up for shared global defaults."""
+    """Options flow for shared parameters across all HybridHeat rooms."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         super().__init__()
@@ -388,5 +406,206 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        """TODO: expose hysteresis / min run / COP override without removing the entry."""
-        return self.async_abort(reason="options_not_implemented")
+        """Edit shared settings and apply them to all rooms."""
+        if user_input is not None:
+            try:
+                normalized = _normalize_entry(dict(user_input))
+                patch = {k: normalized[k] for k in SHARED_OPTION_KEYS if k in normalized}
+                for entry in self.hass.config_entries.async_entries(DOMAIN):
+                    data = dict(entry.data)
+                    data.update(patch)
+                    self.hass.config_entries.async_update_entry(entry, data=data)
+                    await self.hass.config_entries.async_reload(entry.entry_id)
+                return self.async_create_entry(title="", data={})
+            except ValueError:
+                return self.async_show_form(
+                    step_id="init",
+                    data_schema=self._build_schema(),
+                    errors={"base": "forecast_required"},
+                )
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.error("HybridHeat: options update failed: %s", err, exc_info=True)
+                return self.async_show_form(
+                    step_id="init",
+                    data_schema=self._build_schema(),
+                    errors={"base": "unknown"},
+                )
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self._build_schema(),
+            errors={},
+        )
+
+    def _build_schema(self) -> vol.Schema:
+        d = dict(self.config_entry.data)
+        d.update(self.config_entry.options)
+        return vol.Schema(
+            {
+                vol.Required(
+                    CONF_OUTDOOR_TEMP_SENSOR,
+                    default=d.get(CONF_OUTDOOR_TEMP_SENSOR, ""),
+                ): _sensor_selector(),
+                vol.Required(
+                    CONF_ELECTRICITY_PRICE_PER_KWH,
+                    default=float(
+                        d.get(CONF_ELECTRICITY_PRICE_PER_KWH, DEFAULT_ELECTRICITY_PRICE_PER_KWH)
+                    ),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        mode=selector.NumberSelectorMode.BOX,
+                        min=0,
+                        max=5,
+                        step=0.001,
+                        unit_of_measurement="€/kWh",
+                    )
+                ),
+                vol.Required(
+                    CONF_GAS_PRICE_PER_KWH,
+                    default=float(d.get(CONF_GAS_PRICE_PER_KWH, DEFAULT_GAS_PRICE_PER_KWH)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        mode=selector.NumberSelectorMode.BOX,
+                        min=0,
+                        max=5,
+                        step=0.001,
+                        unit_of_measurement="€/kWh",
+                    )
+                ),
+                vol.Required(
+                    CONF_FEED_IN_PRICE_PER_KWH,
+                    default=float(
+                        d.get(CONF_FEED_IN_PRICE_PER_KWH, DEFAULT_FEED_IN_PRICE_PER_KWH)
+                    ),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        mode=selector.NumberSelectorMode.BOX,
+                        min=0,
+                        max=5,
+                        step=0.001,
+                        unit_of_measurement="€/kWh",
+                    )
+                ),
+                vol.Required(
+                    CONF_FORECAST_SOLAR_ENTITIES,
+                    default=d.get(CONF_FORECAST_SOLAR_ENTITIES, []),
+                ): _sensor_selector(multiple=True),
+                vol.Optional(
+                    CONF_BATTERY_CAPACITY_KWH,
+                    default=float(d.get(CONF_BATTERY_CAPACITY_KWH, 0)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        mode=selector.NumberSelectorMode.BOX,
+                        min=0,
+                        max=200,
+                        step=0.1,
+                        unit_of_measurement="kWh",
+                    )
+                ),
+                vol.Optional(
+                    CONF_BATTERY_MIN_SOC,
+                    default=float(d.get(CONF_BATTERY_MIN_SOC, 15)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        mode=selector.NumberSelectorMode.BOX,
+                        min=0,
+                        max=100,
+                        step=1,
+                        unit_of_measurement="%",
+                    )
+                ),
+                vol.Optional(
+                    CONF_BATTERY_MAX_SOC,
+                    default=float(d.get(CONF_BATTERY_MAX_SOC, 95)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        mode=selector.NumberSelectorMode.BOX,
+                        min=0,
+                        max=100,
+                        step=1,
+                        unit_of_measurement="%",
+                    )
+                ),
+                vol.Optional(
+                    CONF_BASE_LOAD_W,
+                    default=float(d.get(CONF_BASE_LOAD_W, 400)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        mode=selector.NumberSelectorMode.BOX,
+                        min=0,
+                        max=20000,
+                        step=50,
+                        unit_of_measurement="W",
+                    )
+                ),
+                vol.Optional(
+                    CONF_HEATING_EFFICIENCY,
+                    default=float(d.get(CONF_HEATING_EFFICIENCY, DEFAULT_HEATING_EFFICIENCY)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        mode=selector.NumberSelectorMode.BOX,
+                        min=0.5,
+                        max=1.0,
+                        step=0.01,
+                    )
+                ),
+                vol.Optional(
+                    CONF_HYSTERESIS,
+                    default=float(d.get(CONF_HYSTERESIS, DEFAULT_HYSTERESIS)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        mode=selector.NumberSelectorMode.BOX,
+                        min=0.1,
+                        max=3.0,
+                        step=0.05,
+                        unit_of_measurement="°C",
+                    )
+                ),
+                vol.Optional(
+                    CONF_MIN_RUN_HEATING,
+                    default=int(d.get(CONF_MIN_RUN_HEATING, DEFAULT_MIN_RUN_HEATING)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        mode=selector.NumberSelectorMode.BOX,
+                        min=60,
+                        max=7200,
+                        step=60,
+                        unit_of_measurement="s",
+                    )
+                ),
+                vol.Optional(
+                    CONF_MIN_RUN_AC,
+                    default=int(d.get(CONF_MIN_RUN_AC, DEFAULT_MIN_RUN_AC)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        mode=selector.NumberSelectorMode.BOX,
+                        min=60,
+                        max=7200,
+                        step=60,
+                        unit_of_measurement="s",
+                    )
+                ),
+                vol.Optional(
+                    CONF_MIN_IDLE,
+                    default=int(d.get(CONF_MIN_IDLE, DEFAULT_MIN_IDLE)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        mode=selector.NumberSelectorMode.BOX,
+                        min=0,
+                        max=7200,
+                        step=60,
+                        unit_of_measurement="s",
+                    )
+                ),
+                vol.Optional(
+                    CONF_COP_POINTS,
+                    default=d.get(CONF_COP_POINTS, ""),
+                ): selector.TextSelector(
+                    selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT,
+                        multiline=True,
+                    )
+                ),
+            },
+            extra=vol.REMOVE_EXTRA,
+        )
