@@ -440,6 +440,46 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
     def _build_schema(self) -> vol.Schema:
         d = dict(self.config_entry.data)
         d.update(self.config_entry.options)
+        forecast_default = d.get(CONF_FORECAST_SOLAR_ENTITIES, [])
+        if isinstance(forecast_default, str):
+            forecast_default = [forecast_default] if forecast_default else []
+        elif isinstance(forecast_default, tuple):
+            forecast_default = list(forecast_default)
+        elif not isinstance(forecast_default, list):
+            forecast_default = []
+
+        def _f(key: str, fallback: float) -> float:
+            raw = d.get(key, fallback)
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                return fallback
+
+        def _i(key: str, fallback: int) -> int:
+            raw = d.get(key, fallback)
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                return fallback
+
+        cop_default_raw = d.get(CONF_COP_POINTS, "")
+        if isinstance(cop_default_raw, str):
+            cop_default = cop_default_raw
+        elif isinstance(cop_default_raw, list):
+            # list-style legacy format -> "t:cop, ..."
+            parts: list[str] = []
+            for item in cop_default_raw:
+                if isinstance(item, (list, tuple)) and len(item) >= 2:
+                    parts.append(f"{item[0]}:{item[1]}")
+                elif isinstance(item, dict):
+                    t = item.get("t", item.get("outdoor_temp_c"))
+                    c = item.get("cop")
+                    if t is not None and c is not None:
+                        parts.append(f"{t}:{c}")
+            cop_default = ", ".join(parts)
+        else:
+            cop_default = ""
+
         return vol.Schema(
             {
                 vol.Required(
@@ -448,9 +488,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ): _sensor_selector(),
                 vol.Required(
                     CONF_ELECTRICITY_PRICE_PER_KWH,
-                    default=float(
-                        d.get(CONF_ELECTRICITY_PRICE_PER_KWH, DEFAULT_ELECTRICITY_PRICE_PER_KWH)
-                    ),
+                    default=_f(CONF_ELECTRICITY_PRICE_PER_KWH, DEFAULT_ELECTRICITY_PRICE_PER_KWH),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         mode=selector.NumberSelectorMode.BOX,
@@ -462,7 +500,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ),
                 vol.Required(
                     CONF_GAS_PRICE_PER_KWH,
-                    default=float(d.get(CONF_GAS_PRICE_PER_KWH, DEFAULT_GAS_PRICE_PER_KWH)),
+                    default=_f(CONF_GAS_PRICE_PER_KWH, DEFAULT_GAS_PRICE_PER_KWH),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         mode=selector.NumberSelectorMode.BOX,
@@ -474,9 +512,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ),
                 vol.Required(
                     CONF_FEED_IN_PRICE_PER_KWH,
-                    default=float(
-                        d.get(CONF_FEED_IN_PRICE_PER_KWH, DEFAULT_FEED_IN_PRICE_PER_KWH)
-                    ),
+                    default=_f(CONF_FEED_IN_PRICE_PER_KWH, DEFAULT_FEED_IN_PRICE_PER_KWH),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         mode=selector.NumberSelectorMode.BOX,
@@ -488,11 +524,11 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ),
                 vol.Required(
                     CONF_FORECAST_SOLAR_ENTITIES,
-                    default=d.get(CONF_FORECAST_SOLAR_ENTITIES, []),
+                    default=forecast_default,
                 ): _sensor_selector(multiple=True),
                 vol.Optional(
                     CONF_BATTERY_CAPACITY_KWH,
-                    default=float(d.get(CONF_BATTERY_CAPACITY_KWH, 0)),
+                    default=_f(CONF_BATTERY_CAPACITY_KWH, 0),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         mode=selector.NumberSelectorMode.BOX,
@@ -504,7 +540,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ),
                 vol.Optional(
                     CONF_BATTERY_MIN_SOC,
-                    default=float(d.get(CONF_BATTERY_MIN_SOC, 15)),
+                    default=_f(CONF_BATTERY_MIN_SOC, 15),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         mode=selector.NumberSelectorMode.BOX,
@@ -516,7 +552,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ),
                 vol.Optional(
                     CONF_BATTERY_MAX_SOC,
-                    default=float(d.get(CONF_BATTERY_MAX_SOC, 95)),
+                    default=_f(CONF_BATTERY_MAX_SOC, 95),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         mode=selector.NumberSelectorMode.BOX,
@@ -528,7 +564,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ),
                 vol.Optional(
                     CONF_BASE_LOAD_W,
-                    default=float(d.get(CONF_BASE_LOAD_W, 400)),
+                    default=_f(CONF_BASE_LOAD_W, 400),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         mode=selector.NumberSelectorMode.BOX,
@@ -540,7 +576,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ),
                 vol.Optional(
                     CONF_HEATING_EFFICIENCY,
-                    default=float(d.get(CONF_HEATING_EFFICIENCY, DEFAULT_HEATING_EFFICIENCY)),
+                    default=_f(CONF_HEATING_EFFICIENCY, DEFAULT_HEATING_EFFICIENCY),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         mode=selector.NumberSelectorMode.BOX,
@@ -551,7 +587,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ),
                 vol.Optional(
                     CONF_HYSTERESIS,
-                    default=float(d.get(CONF_HYSTERESIS, DEFAULT_HYSTERESIS)),
+                    default=_f(CONF_HYSTERESIS, DEFAULT_HYSTERESIS),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         mode=selector.NumberSelectorMode.BOX,
@@ -563,7 +599,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ),
                 vol.Optional(
                     CONF_MIN_RUN_HEATING,
-                    default=int(d.get(CONF_MIN_RUN_HEATING, DEFAULT_MIN_RUN_HEATING)),
+                    default=_i(CONF_MIN_RUN_HEATING, DEFAULT_MIN_RUN_HEATING),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         mode=selector.NumberSelectorMode.BOX,
@@ -575,7 +611,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ),
                 vol.Optional(
                     CONF_MIN_RUN_AC,
-                    default=int(d.get(CONF_MIN_RUN_AC, DEFAULT_MIN_RUN_AC)),
+                    default=_i(CONF_MIN_RUN_AC, DEFAULT_MIN_RUN_AC),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         mode=selector.NumberSelectorMode.BOX,
@@ -587,7 +623,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ),
                 vol.Optional(
                     CONF_MIN_IDLE,
-                    default=int(d.get(CONF_MIN_IDLE, DEFAULT_MIN_IDLE)),
+                    default=_i(CONF_MIN_IDLE, DEFAULT_MIN_IDLE),
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         mode=selector.NumberSelectorMode.BOX,
@@ -599,7 +635,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ),
                 vol.Optional(
                     CONF_COP_POINTS,
-                    default=d.get(CONF_COP_POINTS, ""),
+                    default=cop_default,
                 ): selector.TextSelector(
                     selector.TextSelectorConfig(
                         type=selector.TextSelectorType.TEXT,
