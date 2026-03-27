@@ -21,7 +21,7 @@
       },
       "globals": {
         "title": "Global energy & PV inputs",
-        "description": "Energy prices as fixed €/kWh; outdoor temp and PV forecast from sensors. COP hint: use EU label SCOP (average climate) as anchor near ~7 °C, e.g. -7:2.8, 0:3.6, 7:4.6, 12:5.0.",
+        "description": "Energy prices as fixed €/kWh; outdoor temp and PV forecast from sensors. When adding another room, fields are pre-filled from the most recently added HybridHeat room (AC setpoint offset stays per-room). COP hint: EU label SCOP (average climate) near ~7 °C, e.g. -7:2.8, 0:3.6, 7:4.6, 12:5.0.",
         "data": {
           "outdoor_temp_sensor_entity_id": "Outdoor temperature sensor",
           "electricity_price_per_kwh": "Grid electricity price (€/kWh)",

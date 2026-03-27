@@ -21,7 +21,7 @@
       },
       "globals": {
         "title": "Globale Energie- und PV-Eingänge",
-        "description": "Energiepreise fest als €/kWh; Außentemperatur und Forecast.Solar als Sensoren. COP-Hinweis: EU-Label SCOP (Durchschnittsklima) als Anker bei ~7 °C nutzen, z. B. -7:2.8, 0:3.6, 7:4.6, 12:5.0.",
+        "description": "Energiepreise fest als €/kWh; Außentemperatur und Forecast.Solar als Sensoren. Bei weiterem Raum werden die Werte des zuletzt angelegten HybridHeat-Raums vorgeschlagen (Klima-Soll-Offset pro Raum neu). COP-Hinweis: EU-Label SCOP (Durchschnittsklima) als Anker bei ~7 °C nutzen, z. B. -7:2.8, 0:3.6, 7:4.6, 12:5.0.",
         "data": {
           "outdoor_temp_sensor_entity_id": "Außentemperatur-Sensor",
           "electricity_price_per_kwh": "Netz-Strompreis (€/kWh)",

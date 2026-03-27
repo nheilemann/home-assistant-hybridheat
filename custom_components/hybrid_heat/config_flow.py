@@ -69,6 +69,100 @@ SHARED_OPTION_KEYS: tuple[str, ...] = (
 )
 
 
+def globals_form_values_from_merged_data(d: dict[str, Any]) -> dict[str, Any]:
+    """Build globals form defaults from merged config entry data + options."""
+    out: dict[str, Any] = {}
+
+    forecast = d.get(CONF_FORECAST_SOLAR_ENTITIES, [])
+    if isinstance(forecast, str):
+        out[CONF_FORECAST_SOLAR_ENTITIES] = [forecast] if forecast else []
+    elif isinstance(forecast, tuple):
+        out[CONF_FORECAST_SOLAR_ENTITIES] = list(forecast)
+    elif isinstance(forecast, list):
+        out[CONF_FORECAST_SOLAR_ENTITIES] = forecast
+    else:
+        out[CONF_FORECAST_SOLAR_ENTITIES] = []
+
+    for key, fallback in (
+        (CONF_ELECTRICITY_PRICE_PER_KWH, DEFAULT_ELECTRICITY_PRICE_PER_KWH),
+        (CONF_GAS_PRICE_PER_KWH, DEFAULT_GAS_PRICE_PER_KWH),
+        (CONF_FEED_IN_PRICE_PER_KWH, DEFAULT_FEED_IN_PRICE_PER_KWH),
+        (CONF_BATTERY_CAPACITY_KWH, 0.0),
+        (CONF_BATTERY_MIN_SOC, 15.0),
+        (CONF_BATTERY_MAX_SOC, 95.0),
+        (CONF_BASE_LOAD_W, 400.0),
+        (CONF_HEATING_EFFICIENCY, DEFAULT_HEATING_EFFICIENCY),
+        (CONF_HYSTERESIS, DEFAULT_HYSTERESIS),
+        (CONF_AC_SETPOINT_OFFSET, DEFAULT_AC_SETPOINT_OFFSET),
+    ):
+        raw = d.get(key, fallback)
+        try:
+            out[key] = float(raw)
+        except (TypeError, ValueError):
+            out[key] = float(fallback)
+
+    for key, fallback in (
+        (CONF_MIN_RUN_HEATING, DEFAULT_MIN_RUN_HEATING),
+        (CONF_MIN_RUN_AC, DEFAULT_MIN_RUN_AC),
+        (CONF_MIN_IDLE, DEFAULT_MIN_IDLE),
+    ):
+        raw = d.get(key, fallback)
+        try:
+            out[key] = int(raw)
+        except (TypeError, ValueError):
+            out[key] = int(fallback)
+
+    out[CONF_OUTDOOR_TEMP_SENSOR] = d.get(CONF_OUTDOOR_TEMP_SENSOR)
+
+    cop_raw = d.get(CONF_COP_POINTS, "")
+    if isinstance(cop_raw, str):
+        out[CONF_COP_POINTS] = cop_raw
+    elif isinstance(cop_raw, list):
+        parts: list[str] = []
+        for item in cop_raw:
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                parts.append(f"{item[0]}:{item[1]}")
+            elif isinstance(item, dict):
+                t = item.get("t", item.get("outdoor_temp_c"))
+                c = item.get("cop")
+                if t is not None and c is not None:
+                    parts.append(f"{t}:{c}")
+        out[CONF_COP_POINTS] = ", ".join(parts)
+    else:
+        out[CONF_COP_POINTS] = ""
+
+    return out
+
+
+def _globals_suggestions_for_additional_room(hass: HomeAssistant) -> dict[str, Any]:
+    """Pre-fill globals step from an existing HybridHeat room (shared prices/sensors)."""
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        return {}
+    sibling = entries[-1]
+    merged = {**dict(sibling.data), **dict(sibling.options)}
+    out = globals_form_values_from_merged_data(merged)
+    out.pop(CONF_AC_SETPOINT_OFFSET, None)
+    return out
+
+
+def _inherit_globals_not_in_form(
+    hass: HomeAssistant, normalized: dict[str, Any]
+) -> None:
+    """Copy battery SoC / house power from a sibling entry (not in initial setup form)."""
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        return
+    sibling = entries[-1]
+    td = {**dict(sibling.data), **dict(sibling.options)}
+    for key in (CONF_BATTERY_SOC_SENSOR, CONF_HOUSE_POWER_ENTITY):
+        if normalized.get(key):
+            continue
+        val = td.get(key)
+        if val not in (None, "", "unknown"):
+            normalized[key] = val
+
+
 def _climate_selector(multiple: bool = False) -> selector.EntitySelector:
     return selector.EntitySelector(
         selector.EntitySelectorConfig(domain="climate", multiple=multiple)
@@ -212,6 +306,7 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
     ) -> config_entries.ConfigFlowResult:
         """Step 2: global sensors, economics, stability, optional battery/load/COP text."""
         errors: dict[str, str] = {}
+        template_globals = _globals_suggestions_for_additional_room(self.hass)
 
         if user_input is not None:
             try:
@@ -221,6 +316,7 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 except ValueError:
                     errors["base"] = "forecast_required"
                 else:
+                    _inherit_globals_not_in_form(self.hass, normalized)
                     return self.async_create_entry(
                         title=normalized[CONF_ROOM_NAME], data=normalized
                     )
@@ -231,6 +327,10 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     exc_info=True,
                 )
                 errors["base"] = "unknown"
+
+        suggested = dict(template_globals)
+        if user_input is not None and errors:
+            suggested.update(user_input)
 
         try:
             schema = vol.Schema(
@@ -409,7 +509,7 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
 
         return self.async_show_form(
             step_id="globals",
-            data_schema=schema,
+            data_schema=self.add_suggested_values_to_schema(schema, suggested),
             errors=errors,
         )
 
@@ -532,68 +632,7 @@ class HybridHeatOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
     def _current_values(self) -> dict[str, Any]:
         d = dict(self._entry.data)
         d.update(self._entry.options)
-        out: dict[str, Any] = {}
-
-        forecast = d.get(CONF_FORECAST_SOLAR_ENTITIES, [])
-        if isinstance(forecast, str):
-            out[CONF_FORECAST_SOLAR_ENTITIES] = [forecast] if forecast else []
-        elif isinstance(forecast, tuple):
-            out[CONF_FORECAST_SOLAR_ENTITIES] = list(forecast)
-        elif isinstance(forecast, list):
-            out[CONF_FORECAST_SOLAR_ENTITIES] = forecast
-        else:
-            out[CONF_FORECAST_SOLAR_ENTITIES] = []
-
-        for key, fallback in (
-            (CONF_ELECTRICITY_PRICE_PER_KWH, DEFAULT_ELECTRICITY_PRICE_PER_KWH),
-            (CONF_GAS_PRICE_PER_KWH, DEFAULT_GAS_PRICE_PER_KWH),
-            (CONF_FEED_IN_PRICE_PER_KWH, DEFAULT_FEED_IN_PRICE_PER_KWH),
-            (CONF_BATTERY_CAPACITY_KWH, 0.0),
-            (CONF_BATTERY_MIN_SOC, 15.0),
-            (CONF_BATTERY_MAX_SOC, 95.0),
-            (CONF_BASE_LOAD_W, 400.0),
-            (CONF_HEATING_EFFICIENCY, DEFAULT_HEATING_EFFICIENCY),
-            (CONF_HYSTERESIS, DEFAULT_HYSTERESIS),
-            (CONF_AC_SETPOINT_OFFSET, DEFAULT_AC_SETPOINT_OFFSET),
-        ):
-            raw = d.get(key, fallback)
-            try:
-                out[key] = float(raw)
-            except (TypeError, ValueError):
-                out[key] = float(fallback)
-
-        for key, fallback in (
-            (CONF_MIN_RUN_HEATING, DEFAULT_MIN_RUN_HEATING),
-            (CONF_MIN_RUN_AC, DEFAULT_MIN_RUN_AC),
-            (CONF_MIN_IDLE, DEFAULT_MIN_IDLE),
-        ):
-            raw = d.get(key, fallback)
-            try:
-                out[key] = int(raw)
-            except (TypeError, ValueError):
-                out[key] = int(fallback)
-
-        out[CONF_OUTDOOR_TEMP_SENSOR] = d.get(CONF_OUTDOOR_TEMP_SENSOR)
-
-        cop_raw = d.get(CONF_COP_POINTS, "")
-        if isinstance(cop_raw, str):
-            out[CONF_COP_POINTS] = cop_raw
-        elif isinstance(cop_raw, list):
-            # list-style legacy format -> "t:cop, ..."
-            parts: list[str] = []
-            for item in cop_raw:
-                if isinstance(item, (list, tuple)) and len(item) >= 2:
-                    parts.append(f"{item[0]}:{item[1]}")
-                elif isinstance(item, dict):
-                    t = item.get("t", item.get("outdoor_temp_c"))
-                    c = item.get("cop")
-                    if t is not None and c is not None:
-                        parts.append(f"{t}:{c}")
-            out[CONF_COP_POINTS] = ", ".join(parts)
-        else:
-            out[CONF_COP_POINTS] = ""
-
-        return out
+        return globals_form_values_from_merged_data(d)
 
     def _build_schema(self) -> vol.Schema:
         return vol.Schema(

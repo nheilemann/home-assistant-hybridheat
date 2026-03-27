@@ -25,7 +25,7 @@ This project is released under the **[MIT License](LICENSE)**. It is a permissiv
 ## MVP feature set
 
 1. **Config flow** (UI): room name, required entities, fixed €/kWh prices, shared-style global sensors (outdoor, PV forecast), optional battery / load / COP text.
-2. **Virtual `climate`** with `current_temperature`, `target_temperature`, `hvac_mode`, `hvac_action` and documented **custom attributes** (active source, cost estimates, effective power price, PV surplus hint, battery SoC if configured, decision text).
+2. **Virtual `climate`** with `current_temperature`, `target_temperature`, `hvac_mode`, `hvac_action` and **state attributes**: decision/cost diagnostics plus **`hh_*` room settings** (linked climates, sensor IDs, offset, η, hysteresis, min run/idle, COP text) and **`hh_temperature_inputs`** (room vs outdoor sensor: entity, friendly name, current °C used by HybridHeat, short German note on what each measures).
 3. **Diagnostic sensors** (optional in the UI) for source, costs, COP, PV factor, reason.
 4. **Heuristic engine** (no multi-hour optimisation): compares `gas_price / η` with `effective_electricity_price / COP` for heating; **cool** uses the AC only with the same effective electricity and **COP** curve as a rough cooling-efficiency hint (SEER-accurate points are not required in the MVP).
 

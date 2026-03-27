@@ -63,6 +63,22 @@ ATTR_PV_SURPLUS_EXPECTED: Final = "pv_surplus_expected"
 ATTR_BATTERY_SOC: Final = "battery_soc"
 ATTR_DECISION_REASON: Final = "decision_reason"
 
+# Room configuration (exposed on virtual climate for visibility / diagnostics)
+ATTR_HH_HEATING_CLIMATE_ENTITY: Final = "hh_heating_climate_entity_id"
+ATTR_HH_HEATING_CLIMATE_NAME: Final = "hh_heating_climate_name"
+ATTR_HH_AC_CLIMATE_ENTITY: Final = "hh_ac_climate_entity_id"
+ATTR_HH_AC_CLIMATE_NAME: Final = "hh_ac_climate_name"
+ATTR_HH_ROOM_TEMP_SENSOR_ENTITY: Final = "hh_room_temperature_sensor_entity_id"
+ATTR_HH_ROOM_TEMP_SENSOR_NAME: Final = "hh_room_temperature_sensor_name"
+ATTR_HH_AC_SETPOINT_OFFSET_C: Final = "hh_ac_setpoint_offset_c"
+ATTR_HH_HEATING_EFFICIENCY: Final = "hh_heating_efficiency"
+ATTR_HH_HYSTERESIS_C: Final = "hh_hysteresis_c"
+ATTR_HH_MIN_RUN_HEATING_S: Final = "hh_min_run_heating_seconds"
+ATTR_HH_MIN_RUN_AC_S: Final = "hh_min_run_ac_seconds"
+ATTR_HH_MIN_IDLE_S: Final = "hh_min_idle_after_switch_seconds"
+ATTR_HH_COP_POINTS: Final = "hh_cop_support_points"
+ATTR_HH_TEMPERATURE_INPUTS: Final = "hh_temperature_inputs"
+
 # Platform names
 PLATFORMS: Final[list[str]] = ["climate", "sensor"]
 
