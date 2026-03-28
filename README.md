@@ -24,8 +24,8 @@ This project is released under the **[MIT License](LICENSE)**. It is a permissiv
 
 ## MVP feature set
 
-1. **Config flow** (UI): room name, required entities, fixed €/kWh prices, shared-style global sensors (outdoor, PV forecast), optional battery / load / COP text.
-2. **Virtual `climate`** with `current_temperature`, `target_temperature`, `hvac_mode`, `hvac_action` and **state attributes**: decision/cost diagnostics plus **`hh_*` room settings** (linked climates, sensor IDs, offset, η, hysteresis, min run/idle, COP text) and **`hh_temperature_inputs`** (room vs outdoor sensor: entity, friendly name, current °C used by HybridHeat, short German note on what each measures).
+1. **Config flow** (UI): room name, required entities, fixed €/kWh prices, global sensors (outdoor, PV forecast), optional battery / load / COP text. **Additional rooms:** the globals step is **pre-filled** from the most recently added HybridHeat entry (AC setpoint offset stays per room). If the AC entity’s state lists `hvac_modes` **without** `cool`, a **menu** offers another AC entity or heat-only continue.
+2. **Virtual `climate`** with `current_temperature`, `target_temperature`, `hvac_mode`, `hvac_action` and **state attributes**: decision/cost diagnostics plus **`hh_*` room settings** (linked climates, sensor IDs, offset, η, hysteresis, min run/idle, COP text) and **`hh_temperature_inputs`** (room vs outdoor sensor: entity, friendly name, current °C, short note on what each measures). **`cool`** appears in the UI only if the configured AC lists `cool` in `hvac_modes`. **`hvac_mode` and target** are **restored after a Home Assistant restart** via Home Assistant’s **restore state** (Recorder / `core.restore_state`); without that, startup defaults apply.
 3. **Diagnostic sensors** (optional in the UI) for source, costs, COP, PV factor, reason.
 4. **Heuristic engine** (no multi-hour optimisation): compares `gas_price / η` with `effective_electricity_price / COP` for heating; **cool** uses the AC only with the same effective electricity and **COP** curve as a rough cooling-efficiency hint (SEER-accurate points are not required in the MVP).
 
@@ -34,11 +34,11 @@ This project is released under the **[MIT License](LICENSE)**. It is a permissiv
 | Module | Role |
 |--------|------|
 | `__init__.py` | Lifecycle, build `RoomConfig` / `GlobalSensorConfig`, coordinator in `hass.data`. |
-| `config_flow.py` | UI setup (one entry = one room). Options flow: placeholder (`TODO`). |
+| `config_flow.py` | UI setup (one entry = one room); **options flow** updates shared fields for **all** HybridHeat entries. |
 | `coordinator.py` | `DataUpdateCoordinator`: snapshot of temperatures, prices, forecast, load, battery. |
 | `models.py` | Dataclasses: config, readings, costs, decision. |
 | `engine.py` | COP interpolation, effective electricity price, cost comparison, hysteresis, timing rules. |
-| `climate.py` | Virtual `ClimateEntity`, applies decisions via `climate.*` services defensively. |
+| `climate.py` | Virtual `ClimateEntity` + `RestoreEntity`; applies decisions via `climate.*` only when the **desired hybrid state** (mode, target, engine output) **changes**, to avoid redundant device commands. |
 | `sensor.py` | Diagnostic sensors from `coordinator.last_decision`. |
 
 Forecast sensors are **not** modeled as direct heat input to the room; they inform whether **PV surplus** is likely and whether marginal kWh is closer to **grid price** or **opportunity cost of export** (feed-in).
@@ -66,7 +66,7 @@ HybridHeat is **not** in the default HACS store. Add the repo as a **custom repo
 
 ### After installation
 
-Create **one config entry per room**. Shared settings can be edited from any room entry via the gear icon (options) and are applied to all HybridHeat rooms.
+Create **one config entry per room**. Shared settings can be edited from any room entry via the gear icon (**options**) and are **written to every** HybridHeat config entry and reloaded. When adding a **second or later** room, the globals step suggests values from the latest existing entry.
 
 ### Troubleshooting & logs
 
@@ -94,7 +94,7 @@ After a successful setup you should see a line like `HybridHeat: setting up conf
 **Per room (required)**  
 
 - Heating `climate`  
-- AC `climate` (heat mode)  
+- AC `climate` (heat & cool, if the device exposes `cool`)  
 - Room temperature `sensor`
 
 **Global (per entry — usually pick the same entities each time)**  
@@ -105,7 +105,7 @@ After a successful setup you should see a line like `HybridHeat: setting up conf
 
 **Optional**  
 
-- Battery **capacity** (kWh) and SoC **limits** for heuristics (no SoC sensor in the config UI yet — options flow `TODO`; set capacity to `0` to disable battery)  
+- Battery **capacity** (kWh) and SoC **limits** for heuristics (set capacity to `0` to disable battery). **Battery SoC sensor** and **house power** entity are not in the setup form; they can be merged from another room on first install or set in the entry (e.g. YAML / repair) if needed.  
 - **Base load** (W) for forecast vs consumption (house power entity picker removed from the flow for the same serialization constraint)  
 - COP points as text: `-5:2.2, 0:2.8, 5:3.4, 10:4.0`  
 - **AC setpoint offset (°C):** added only to the commanded temperature of the AC `climate` when HybridHeat selects it, so the unit keeps heating if its **built-in sensor** reaches setpoint before your **room thermostat sensor** (e.g. room 19 °C, AC thinks 21 °C → try offset **+2**). Clamped to the virtual thermostat min/max.  
@@ -164,9 +164,9 @@ Fine-tuning later:
 
 - MVP modes: **`off`**, **`heat`**, **`cool`** (structure can later add **`auto`**, `TODO`).
 - In **`cool`**, child AC setpoint is **hybrid target minus** the configured AC offset (in **`heat`** it is target **plus** offset).
-- Extra attributes include: `active_source` (`heating` / `ac` / `none`), cost estimates, `effective_electricity_price`, `pv_surplus_expected`, `battery_soc`, `decision_reason`.
+- Extra attributes include: `active_source` (`heating` / `ac` / `none`), cost estimates, `effective_electricity_price`, `pv_surplus_expected`, `battery_soc`, `decision_reason`, plus the **`hh_*`** / **`hh_temperature_inputs`** fields described under MVP features.
 
-Child devices are only called when mode or setpoint **actually needs** to change.
+**Child `climate` entities** receive `climate.turn_on` / `set_hvac_mode` / `set_temperature` only when the **logical command** (virtual mode, target, and engine decision fingerprint) **changes**—not on every 60 s poll—so devices are not pinged repeatedly when nothing changed.
 
 ## Manual testing (checklist)
 
@@ -174,7 +174,8 @@ Child devices are only called when mode or setpoint **actually needs** to change
 2. **Cool:** With an AC that lists **`cool`** in Developer Tools → States (`hvac_modes`), set mode **cool**, target below room temp — expect AC in cool; `hvac_action` **cooling** when the engine applies cool.  
 3. **Off:** Virtual **off** — both child climates should go **off**.  
 4. **AC without cool:** If the configured AC has a non-empty `hvac_modes` without `cool`, the virtual entity should **not** offer **cool**; switching via service should raise a clear error. If `hvac_modes` is missing/empty, **cool** may still appear until the device reports modes — a failed `set_hvac_mode` is logged with a hint to check `hvac_modes`. **New install:** when the AC state already lists modes without `cool`, the config flow shows a **menu** (pick another AC or continue heat-only).  
-5. **Mode change:** After **heat** ↔ **cool** ↔ **off**, confirm no stale run (wrong child still on) using child entity states.
+5. **Mode change:** After **heat** ↔ **cool** ↔ **off**, confirm no stale run (wrong child still on) using child entity states.  
+6. **Restart:** Set virtual **off**, restart Home Assistant (with Recorder / restore state enabled) — virtual mode should return **off**; children should be driven off on first coordinator cycle.
 
 ## Known MVP limitations
 
@@ -183,11 +184,12 @@ Child devices are only called when mode or setpoint **actually needs** to change
 - **Battery** is not charged/discharged by this integration.  
 - **Forecast** parsing is simple — use a **template sensor** in front of unusual entities.  
 - One entry per room (shared settings are synced across all room entries via options flow).  
+- **Restored** `hvac_mode` / target depend on Home Assistant’s **restore state**; if that store is empty (fresh install, Recorder off), defaults apply until you change the thermostat again.
 
 ## Roadmap / TODOs
 
-- Shared **global config** (prices / forecast / battery once, many rooms).  
-- Full **options flow** (hysteresis, COP, swap entities).  
+- **Single shared storage** for global settings (today: duplicated per entry + options sync + new-room pre-fill).  
+- More **options-flow fields** where HA’s schema serialization allows (e.g. battery SoC / house power selectors).  
 - **`auto`** mode / comfort extras.  
 - Richer **forecast / time series** handling.  
 - Unit tests for `engine` without Home Assistant.

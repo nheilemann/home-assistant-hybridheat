@@ -194,6 +194,38 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
     def __init__(self) -> None:
         self._room_data: dict[str, Any] = {}
         self._room_data_pending: dict[str, Any] | None = None
+        self._reconfigure_pending: dict[str, Any] | None = None
+
+    @callback
+    def _complete_reconfigure(
+        self,
+        entry: config_entries.ConfigEntry,
+        room_input: dict[str, Any],
+    ) -> config_entries.ConfigFlowResult:
+        """Apply room fields to the existing config entry and reload."""
+        room_name = str(room_input[CONF_ROOM_NAME]).strip()
+        new_uid = f"{DOMAIN}_{room_name.lower().replace(' ', '_')}"
+        if new_uid != (entry.unique_id or ""):
+            for other in self.hass.config_entries.async_entries(DOMAIN):
+                if other.entry_id != entry.entry_id and other.unique_id == new_uid:
+                    return self.async_show_form(
+                        step_id="reconfigure",
+                        data_schema=self.add_suggested_values_to_schema(
+                            self._build_user_schema(), room_input
+                        ),
+                        errors={"base": "room_name_taken"},
+                    )
+        return self.async_update_reload_and_abort(
+            entry,
+            unique_id=new_uid,
+            title=room_name,
+            data_updates={
+                CONF_ROOM_NAME: room_name,
+                CONF_HEATING_CLIMATE: room_input[CONF_HEATING_CLIMATE],
+                CONF_AC_CLIMATE: room_input[CONF_AC_CLIMATE],
+                CONF_ROOM_TEMP_SENSOR: room_input[CONF_ROOM_TEMP_SENSOR],
+            },
+        )
 
     def _build_user_schema(self) -> vol.Schema:
         return vol.Schema(
@@ -259,6 +291,104 @@ class HybridHeatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             data_schema=schema,
             errors=errors,
         )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Change room name, heating/AC climates, and room temperature sensor."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            try:
+                room_name = str(user_input.get(CONF_ROOM_NAME, "")).strip()
+                heat_ent = user_input.get(CONF_HEATING_CLIMATE)
+                ac_ent = user_input.get(CONF_AC_CLIMATE)
+                if not room_name:
+                    errors["base"] = "empty_room_name"
+                elif heat_ent == ac_ent:
+                    errors["base"] = "same_climate_entities"
+                elif isinstance(ac_ent, str) and _ac_cool_known_unsupported(
+                    self.hass, ac_ent
+                ):
+                    self._reconfigure_pending = user_input
+                    return self.async_show_menu(
+                        step_id="reconfigure_ac_no_cool",
+                        menu_options=[
+                            "reconfigure_choose_other_ac",
+                            "reconfigure_continue_without_cool",
+                        ],
+                        description_placeholders={"ac_entity": ac_ent},
+                    )
+                else:
+                    return self._complete_reconfigure(entry, user_input)
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.error(
+                    "HybridHeat: async_step_reconfigure failed: %s",
+                    err,
+                    exc_info=True,
+                )
+                errors["base"] = "unknown"
+
+        merged = {**dict(entry.data), **dict(entry.options)}
+        suggested: dict[str, Any] = {
+            CONF_ROOM_NAME: merged.get(CONF_ROOM_NAME, ""),
+            CONF_HEATING_CLIMATE: merged.get(CONF_HEATING_CLIMATE),
+            CONF_AC_CLIMATE: merged.get(CONF_AC_CLIMATE),
+            CONF_ROOM_TEMP_SENSOR: merged.get(CONF_ROOM_TEMP_SENSOR),
+        }
+        if user_input is not None and errors:
+            suggested.update(user_input)
+
+        try:
+            schema = self._build_user_schema()
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("HybridHeat: building reconfigure schema failed")
+            return self.async_abort(reason="unknown")
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(schema, suggested),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure_choose_other_ac(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Reconfigure menu: return to room form with previous values."""
+        pending = self._reconfigure_pending
+        self._reconfigure_pending = None
+        try:
+            schema = self._build_user_schema()
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("HybridHeat: building reconfigure schema failed")
+            return self.async_abort(reason="unknown")
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(schema, pending or {}),
+            errors={},
+        )
+
+    async def async_step_reconfigure_continue_without_cool(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Reconfigure menu: accept AC without cool in hvac_modes."""
+        entry = self._get_reconfigure_entry()
+        pending = self._reconfigure_pending
+        self._reconfigure_pending = None
+        if not pending:
+            return self.async_abort(reason="unknown")
+        room_name = str(pending.get(CONF_ROOM_NAME, "")).strip()
+        heat_ent = pending.get(CONF_HEATING_CLIMATE)
+        ac_ent = pending.get(CONF_AC_CLIMATE)
+        if not room_name or heat_ent == ac_ent:
+            return self.async_abort(reason="unknown")
+        if isinstance(ac_ent, str):
+            _LOGGER.info(
+                "HybridHeat: Reconfigure ohne Kühlmodus (AC %s: kein cool in hvac_modes).",
+                ac_ent,
+            )
+        return self._complete_reconfigure(entry, pending)
 
     async def async_step_choose_other_ac(
         self, user_input: dict[str, Any] | None = None

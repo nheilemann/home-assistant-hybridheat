@@ -19,6 +19,24 @@
           "continue_without_cool": "Nur Heizen — fortfahren"
         }
       },
+      "reconfigure": {
+        "title": "HybridHeat – Raum anpassen",
+        "description": "Raumname, Heizungs- und Klima-Climate sowie Raumtemperatur-Sensor ändern. Globale Einstellungen bleiben unter „Optionen“ bzw. bleiben wie zuletzt gespeichert.",
+        "data": {
+          "room_name": "Raumname",
+          "heating_climate_entity_id": "Primäre Heizquelle (Climate)",
+          "ac_climate_entity_id": "Klimaanlage (Climate, Heizen/Kühlen)",
+          "room_temp_sensor_entity_id": "Raumtemperatur-Sensor"
+        }
+      },
+      "reconfigure_ac_no_cool": {
+        "title": "Klima ohne Kühlmodus?",
+        "description": "Die gewählte Klima-Entity ({ac_entity}) listet keinen Modus „cool“. Die virtuelle Entity kann dann nicht kühlen. Sie können eine andere Klima-Entity wählen oder nur Heizen fortfahren.",
+        "menu_options": {
+          "reconfigure_choose_other_ac": "Andere Klima-Entity wählen",
+          "reconfigure_continue_without_cool": "Nur Heizen — fortfahren"
+        }
+      },
       "globals": {
         "title": "Globale Energie- und PV-Eingänge",
         "description": "Energiepreise fest als €/kWh; Außentemperatur und Forecast.Solar als Sensoren. Bei weiterem Raum werden die Werte des zuletzt angelegten HybridHeat-Raums vorgeschlagen (Klima-Soll-Offset pro Raum neu). COP-Hinweis: EU-Label SCOP (Durchschnittsklima) als Anker bei ~7 °C nutzen, z. B. -7:2.8, 0:3.6, 7:4.6, 12:5.0.",
@@ -46,6 +64,7 @@
       "empty_room_name": "Bitte einen Raumnamen angeben.",
       "forecast_required": "Mindestens ein Forecast-/PV-Sensor ist erforderlich.",
       "same_climate_entities": "Heizungs- und Klima-Climate müssen zwei verschiedene Entities sein.",
+      "room_name_taken": "Dieser Raumname ist bereits für einen anderen HybridHeat-Eintrag vergeben.",
       "unknown": "Unerwarteter Fehler — Details im Log (Logger: custom_components.hybrid_heat)."
     },
     "abort": {

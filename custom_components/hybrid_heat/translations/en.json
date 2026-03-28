@@ -19,6 +19,24 @@
           "continue_without_cool": "Continue (heat only)"
         }
       },
+      "reconfigure": {
+        "title": "HybridHeat – Adjust room",
+        "description": "Change room name, heating and AC climate entities, and room temperature sensor. Global settings stay under Options (or as last saved).",
+        "data": {
+          "room_name": "Room name",
+          "heating_climate_entity_id": "Primary heating source (climate)",
+          "ac_climate_entity_id": "Heat pump / AC climate (heat & cool)",
+          "room_temp_sensor_entity_id": "Room temperature sensor"
+        }
+      },
+      "reconfigure_ac_no_cool": {
+        "title": "AC has no cool mode?",
+        "description": "The selected climate entity ({ac_entity}) does not list HVAC mode \"cool\". The virtual thermostat cannot offer cooling. Pick another AC entity or continue with heat only.",
+        "menu_options": {
+          "reconfigure_choose_other_ac": "Choose another AC entity",
+          "reconfigure_continue_without_cool": "Continue (heat only)"
+        }
+      },
       "globals": {
         "title": "Global energy & PV inputs",
         "description": "Energy prices as fixed €/kWh; outdoor temp and PV forecast from sensors. When adding another room, fields are pre-filled from the most recently added HybridHeat room (AC setpoint offset stays per-room). COP hint: EU label SCOP (average climate) near ~7 °C, e.g. -7:2.8, 0:3.6, 7:4.6, 12:5.0.",
@@ -46,6 +64,7 @@
       "empty_room_name": "Please enter a room name.",
       "forecast_required": "Select at least one forecast / PV sensor.",
       "same_climate_entities": "Heating and AC must be two different climate entities.",
+      "room_name_taken": "This room name is already used by another HybridHeat entry.",
       "unknown": "Unexpected error — check logs for custom_components.hybrid_heat."
     },
     "abort": {

@@ -97,7 +97,7 @@ class HybridHeatClimate(
             name=rc.room_name,
             manufacturer="HybridHeat",
             model="Virtuelles Hybrid-Raumthermostat",
-            sw_version="0.2a23",
+            sw_version="0.2a24",
         )
         self._heating_id = rc.heating_climate_entity_id
         self._ac_id = rc.ac_climate_entity_id
